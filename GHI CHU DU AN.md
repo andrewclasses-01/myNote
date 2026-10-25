@@ -102,6 +102,41 @@ Thầy cho phép (hỏi bằng nút): tạo kho GitHub công khai · CNAME ở i
 - So băm file AWord live luôn "lệch" vì live là bản THU GỌN (Đợt 482) — kiểm bằng `build.json` (sha + nguon), không so byte.
 - `tools/kiem-live.py` của AWord bị timeout mạng lần này ⇒ kiểm tay bằng build.json.
 
+## Chặng 4 — 25/10/2026 — v0.3.0 VIẾT MƯỢT trên iPad (máy 1)
+
+### Thầy thử iPad thật, báo 3 lỗi
+1. "Khi đè tay lên viết, nét bút bị dừng và có menu của trình duyệt hiện lên (Sao chép | Dịch thuật) — cần chặn hoàn toàn."
+2. "Viền trên cùng bị mờ do nằm sát khu vực thanh trạng thái của iOS."
+3. "Nét bút không mượt, bị giật. Cần cực kỳ tối ưu … mượt, đẹp, tối ưu y như Notability."
+
+### Gốc + cách sửa
+1. **Menu iOS / nét đứt**: iOS vẫn chạy hành vi gốc của CHẠM (giữ lâu ⇒ bôi chọn chữ + menu, kính lúp, Scribble của Pencil) — chính
+   các hành vi đó bắn `pointercancel` làm nét dừng. `touch-action:none` KHÔNG đủ trên iOS. Sửa: `touchstart`/`touchmove` trên khung viết
+   `preventDefault` (passive:false, trừ menu vùng chọn / ô gõ chữ / nút thêm trang) + chặn `contextmenu` + `selectstart` toàn trang
+   (trừ input/textarea) + CSS `user-select:none; -webkit-touch-callout:none` cho cả app. Bút chạm ⇒ bỏ focus ô tiêu đề.
+   **Chống tì lòng bàn tay**: đã dùng bút một lần trong phiên ⇒ chạm có vùng tiếp xúc > 44 px bị bỏ qua; bút chạm ⇒ huỷ cử chỉ
+   ngón/lòng tay đang dở (hết cảnh tì tay trước rồi đặt bút làm trang trôi).
+2. **Viền trên mờ**: trang giấy cuộn LÊN DƯỚI thanh trạng thái (viewport-fit=cover) và iOS làm mờ phần nội dung dưới thanh đó.
+   Sửa: dải công cụ thành DẢI ĐẶC cao `env(safe-area-inset-top) + 72px` (biến `--edtop`), khung viết bắt đầu ngay dưới dải ⇒
+   không gì cuộn dưới thanh trạng thái. `theme-color` = màu dải (#eef1f6).
+3. **Giật** — 5 nguyên nhân, sửa cả 5:
+   - Lớp nét đang viết là canvas CỠ CẢ TRANG (~7 triệu điểm ảnh ở ×2) ⇒ iPad xoá + ghép lớp khổng lồ mỗi khung ⇒ nay `.live-layer`
+     CỠ KHUNG VIẾT, vẽ theo toạ độ trang qua `setTransform`, chỉ xoá vùng quanh nét (`lvBox`), `desynchronized`.
+   - Nét vẽ bằng hàng trăm `stroke()` đầu tròn chồng nhau ⇒ mép gợn + nặng ⇒ `ink.js` `fillPen`: dựng ĐƯỜNG VIỀN cả nét (lệch theo
+     pháp tuyến, bán kính theo lực nhấn), nối `quadraticCurveTo` qua trung điểm, tô MỘT lần (nonzero ⇒ vòng chữ o / nét tự cắt vẫn đặc),
+     chấm tròn ở 2 đầu + góc gắt. Đo trên máy: 1 khung nét 1.500 điểm ≈ 2,5 ms (đã ép vẽ xong bằng getImageData).
+   - Tay run / cảm biến nhiễu ⇒ răng cưa ⇒ làm mượt lúc thu điểm (streamline 40 % bút, lực nhấn đổi dần 35 %/điểm); lúc vẽ nối thêm
+     điểm THẬT cuối (+ điểm đoán `getPredictedEvents` nếu trình duyệt có) ⇒ mực bám đầu bút; nhấc bút ⇒ chốt đúng điểm thật.
+   - `backdrop-filter: blur` ở tiêu đề/thanh công cụ/nút trang ⇒ iPad tính lại blur mỗi khung khi mực đổi bên dưới ⇒ bỏ, nền trắng đặc.
+   - Lưu (chép cả ghi chú vào IndexedDB + dựng ảnh thu nhỏ JPEG) 0,8 s sau MỖI nét = đúng lúc đang viết nét kế ⇒ nay chờ 1,5 s và
+     KHÔNG lưu khi bút đang chạm / vừa nhấc < 1,2 s; ảnh thu nhỏ chỉ dựng lúc rời màn hoặc ẩn app.
+   - Thêm: đang viết không đo lại khung trang mỗi lần di bút (`getBoundingClientRect` chỉ lúc đặt bút); canvas trang `alpha:false`.
+- AWord **Đợt 584**: chép `core/note-ink.js` ⇒ máy chiếu vẽ nét y hệt iPad.
+
+### Đã kiểm (máy tính 1180×820)
+Vòng xoắn có lực nhấn đổi liên tục, chữ V gắt, vòng tự cắt — mép mịn, đầu tròn; dạ quang, lasso, gõ chữ vẫn đúng; lớp nét sạch sau khi
+nhấc bút; không lỗi console. CHƯA kiểm được trên iPad thật: cảm giác mượt, menu iOS, chống tì tay, dải trên — chờ thầy thử.
+
 ## VIỆC ĐANG CHỜ
 - [ ] Thử nút Xuất / Khôi phục sao lưu bằng file thật.
 - [ ] Thầy thử iPad thật: note.andrewclasses.com ▸ Thêm vào MH chính ▸ đăng nhập ▸ ghi chú ▸ LIVE; máy chiếu AWord ▸ NOTE.

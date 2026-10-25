@@ -65,28 +65,49 @@ export function drawStroke(ctx, s, k, dx = 0, dy = 0) {
     ctx.restore();
     return;
   }
-  penSegments(ctx, s, k, dx, dy, 1, n);
+  fillPen(ctx, s, k, dx, dy);
   ctx.restore();
 }
 
-// Vẽ các đoạn [from, to) của nét bút — dùng cả khi vẽ dần lúc đang viết (chỉ vẽ phần mới)
-export function penSegments(ctx, s, k, dx, dy, from, to) {
+// ⭐ NÉT BÚT = MỘT HÌNH TÔ (v0.3.0, thầy 25/10: "nét bút không mượt, bị giật … cần mượt, đẹp như Notability").
+// Cũ: mỗi đoạn nhỏ một lệnh stroke() riêng, đầu tròn chồng nhau ⇒ mép gợn hạt, nặng (n lệnh vẽ/nét).
+// Nay: dựng ĐƯỜNG VIỀN của cả nét — mỗi điểm lệch sang 2 bên theo pháp tuyến, bán kính theo lực nhấn — rồi nối mềm bằng
+// quadraticCurveTo qua trung điểm và tô MỘT lần (luật nonzero ⇒ nét tự cắt / vòng chữ o vẫn đặc). Hai đầu + góc gắt (> ~100°)
+// thêm chấm tròn để đầu nét tròn và góc không bị khuyết.
+export function fillPen(ctx, s, k, dx = 0, dy = 0) {
   const p = s.p, n = p.length / 3;
+  if (!n) return;
   const X = i => (p[i * 3] + dx) * k, Y = i => (p[i * 3 + 1] + dy) * k;
-  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = s.c;
-  for (let i = Math.max(1, from); i < Math.min(to, n); i++) {
-    // đoạn i: từ trung điểm (i-1,i) tới trung điểm (i,i+1), điều khiển tại điểm i; đoạn đầu/cuối chạm đúng mút
-    const x0 = i === 1 ? X(0) : (X(i - 1) + X(i)) / 2, y0 = i === 1 ? Y(0) : (Y(i - 1) + Y(i)) / 2;
-    const last = i === n - 1;
-    const x1 = last ? X(i) : (X(i) + X(i + 1)) / 2, y1 = last ? Y(i) : (Y(i) + Y(i + 1)) / 2;
-    const pr = (p[(i - 1) * 3 + 2] + p[i * 3 + 2]) / 2;
-    ctx.lineWidth = Math.max(0.6, s.w * k * pw(s, pr));
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    if (last) ctx.lineTo(x1, y1);
-    else ctx.quadraticCurveTo(X(i), Y(i), x1, y1);
-    ctx.stroke();
+  const R = i => Math.max(0.35, (s.w * k * pw(s, p[i * 3 + 2])) / 2);
+  ctx.fillStyle = s.c;
+  if (n === 1) { ctx.beginPath(); ctx.arc(X(0), Y(0), R(0), 0, 6.2832); ctx.fill(); return; }
+  const L = new Array(n * 2), Q = new Array(n * 2), sharp = [];
+  for (let i = 0; i < n; i++) {
+    const a = i ? i - 1 : 0, b = i < n - 1 ? i + 1 : n - 1;
+    let vx = X(b) - X(a), vy = Y(b) - Y(a);
+    const len = Math.hypot(vx, vy) || 1;
+    vx /= len; vy /= len;
+    const r = R(i), x = X(i), y = Y(i);
+    L[i * 2] = x - vy * r; L[i * 2 + 1] = y + vx * r;
+    Q[i * 2] = x + vy * r; Q[i * 2 + 1] = y - vx * r;
+    if (i > 0 && i < n - 1) {
+      const ax = x - X(i - 1), ay = y - Y(i - 1), bx = X(i + 1) - x, by = Y(i + 1) - y;
+      const d = Math.hypot(ax, ay) * Math.hypot(bx, by);
+      if (d && (ax * bx + ay * by) / d < -0.17) sharp.push(i);
+    }
   }
+  ctx.beginPath();
+  ctx.moveTo(L[0], L[1]);
+  for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(L[i * 2], L[i * 2 + 1], (L[i * 2] + L[i * 2 + 2]) / 2, (L[i * 2 + 1] + L[i * 2 + 3]) / 2);
+  ctx.lineTo(L[(n - 1) * 2], L[(n - 1) * 2 + 1]);
+  ctx.lineTo(Q[(n - 1) * 2], Q[(n - 1) * 2 + 1]);
+  for (let i = n - 2; i > 0; i--) ctx.quadraticCurveTo(Q[i * 2], Q[i * 2 + 1], (Q[i * 2] + Q[i * 2 - 2]) / 2, (Q[i * 2 + 1] + Q[i * 2 - 1]) / 2);
+  ctx.lineTo(Q[0], Q[1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  for (const i of [0, n - 1, ...sharp]) { ctx.moveTo(X(i) + R(i), Y(i)); ctx.arc(X(i), Y(i), R(i), 0, 6.2832); }
+  ctx.fill();
 }
 
 // ---------- chữ gõ ----------

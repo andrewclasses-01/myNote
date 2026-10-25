@@ -15,6 +15,8 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
 }
 * { box-sizing: border-box; }
+html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden;
   -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
@@ -122,17 +124,20 @@ input, textarea { font: inherit; color: inherit; }
 
 /* ================================================================ MÀN VIẾT */
 .ed { position: relative; height: 100%; background: #e9ecf2; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.ed-top { position: absolute; z-index: 5; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
-  padding: calc(10px + env(safe-area-inset-top)) 14px 0; pointer-events: none; }
+.ed { --edtop: calc(env(safe-area-inset-top) + 72px); }
+/* v0.3.0 (thầy 25/10: "viền trên cùng bị mờ do nằm sát thanh trạng thái iOS") — dải công cụ là DẢI ĐẶC, trang giấy KHÔNG còn
+   cuộn lên dưới thanh trạng thái (iOS làm mờ phần nội dung nằm dưới thanh đó). Khung viết bắt đầu ngay dưới dải. */
+.ed-top { position: absolute; z-index: 5; top: 0; left: 0; right: 0; height: var(--edtop); display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: env(safe-area-inset-top) 14px 0; background: #eef1f6; border-bottom: 1px solid #dde3ec; }
 .ed-top > * { pointer-events: auto; }
 .ed-left, .ed-right { display: flex; align-items: center; gap: 8px; }
 .ed-left { flex: 1; min-width: 0; }
 .ed-right { flex: 1; justify-content: flex-end; }
-.ed-title { border: 0; outline: 0; background: rgba(255, 255, 255, .8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 12px;
+.ed-title { border: 0; outline: 0; background: #fff; border-radius: 12px;
   height: 42px; padding: 0 12px; font-size: 16px; font-weight: 650; min-width: 0; width: 100%; max-width: 220px; box-shadow: var(--shadow); text-overflow: ellipsis; }
 .ed-title:focus { box-shadow: 0 0 0 2px var(--blue); }
-.palette { display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: rgba(255, 255, 255, .92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border-radius: 18px; box-shadow: var(--shadow-lg); flex: none; }
+.palette { display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: #fff;
+  border-radius: 18px; box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 4px 14px rgba(15,23,42,.08); flex: none; }
 .palette .sep { width: 1px; height: 28px; background: var(--line); margin: 0 4px; }
 .tools, .colors, .sizes { display: flex; align-items: center; gap: 2px; }
 .tool { position: relative; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; color: #334155; transition: background .15s, color .15s; }
@@ -160,9 +165,9 @@ input, textarea { font: inherit; color: inherit; }
 .live-btn.ok::before { background: #e11d48; }
 @keyframes pulse { 50% { opacity: .3; } }
 
-.wrap { position: absolute; inset: 0; overflow: auto; touch-action: none; scrollbar-width: none; -webkit-overflow-scrolling: auto; overscroll-behavior: none; }
+.wrap { position: absolute; left: 0; right: 0; bottom: 0; top: var(--edtop); overflow: auto; touch-action: none; scrollbar-width: none; -webkit-overflow-scrolling: auto; overscroll-behavior: none; }
 .wrap::-webkit-scrollbar { display: none; }
-.inner { padding-top: calc(76px + env(safe-area-inset-top)); padding-bottom: 140px; margin: 0 auto; }
+.inner { padding-top: 18px; padding-bottom: 140px; margin: 0 auto; }
 .page { position: relative; margin: 0 auto; background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 6px 20px rgba(15, 23, 42, .07); }
 .page canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .page canvas.overlay { pointer-events: none; z-index: 2; }
@@ -171,8 +176,11 @@ input, textarea { font: inherit; color: inherit; }
 .wrap[data-tool="text"] { cursor: text; }
 .add-page { display: flex; align-items: center; gap: 8px; margin: 6px auto 0; height: 46px; padding: 0 22px; border-radius: 23px; background: #fff; box-shadow: var(--shadow); font-weight: 650; color: #475569; }
 .laser-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
+/* v0.3.0 — lớp nét đang viết: CỠ KHUNG VIẾT (không phải cỡ trang), nằm ngay trên khung cuộn */
+.live-layer { position: absolute; left: 0; right: 0; bottom: 0; top: var(--edtop); width: 100%; height: calc(100% - var(--edtop)); pointer-events: none; z-index: 3; }
+.live-layer.hl { mix-blend-mode: multiply; }
 .pager { position: absolute; z-index: 5; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: rgba(255, 255, 255, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 16px; padding: 6px 4px; box-shadow: var(--shadow); }
+  background: #fff; border-radius: 16px; padding: 6px 4px; box-shadow: var(--shadow); }
 .pager button { width: 36px; height: 34px; display: grid; place-items: center; color: #475569; }
 .pg-n { font-size: 12.5px; font-weight: 650; color: #475569; padding: 2px 0; text-align: center; width: 44px; }
 .zoom-badge { position: absolute; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.9); background: rgba(15, 23, 42, .78); color: #fff; font-weight: 750; font-size: 18px;

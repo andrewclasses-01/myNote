@@ -7,7 +7,7 @@
 // ⭐ Nét đang viết vẽ trên 1 canvas phủ riêng (chỉ vẽ phần mới), nhấc bút mới in vào canvas trang.
 import { db, uid } from "./db.js";
 import { icon } from "./icons.js";
-import { PAGE_W, drawStroke, penSegments, renderPage, strokeBox } from "./ink.js";
+import { PAGE_W, drawStroke, renderPage, strokeBox } from "./ink.js";
 import { getImg, makeThumb, newPage, blobDataUrl } from "./pages.js";
 import { createLiveSender, LIVE_TEXT, LIVE_LOCAL } from "./live.js";
 import { getUser, currentUser, signIn } from "./firebase.js";
@@ -62,6 +62,7 @@ export async function openEditor(root, id) {
       </div>
     </header>
     <div class="wrap"><div class="inner"></div></div>
+    <canvas class="live-layer"></canvas>
     <canvas class="laser-layer"></canvas>
     <div class="pager"><button data-act="pgUp">${icon("up")}</button><span class="pg-n"></span><button data-act="pgDown">${icon("down")}</button></div>
     <div class="zoom-badge"></div>
@@ -148,7 +149,7 @@ export async function openEditor(root, id) {
         if (!v.cv) {
           v.cv = document.createElement("canvas");
           v.cv.className = "ink";
-          v.ctx = v.cv.getContext("2d");
+          v.ctx = v.cv.getContext("2d", { alpha: false });
           v.el.prepend(v.cv);
           v.k = 0;
         }
@@ -211,16 +212,19 @@ export async function openEditor(root, id) {
   const doRedo = () => { const it = redoS.pop(); if (it) restore(it, undoS); };
   function updUR() { $('[data-act="undo"]').disabled = !undoS.length; $('[data-act="redo"]').disabled = !redoS.length; }
 
-  let saveT = 0, saving = null;
-  function dirty() { clearTimeout(saveT); saveT = setTimeout(save, 800); }
-  async function save() {
+  // ⭐ v0.3.0 — lưu (chép cả ghi chú vào IndexedDB) chạy trên luồng chính ⇒ KHÔNG lưu khi bút đang chạm hay vừa nhấc < 1,2 s
+  //   (cũ: lưu 0,8 s sau mỗi nét = đúng lúc đang viết nét kế ⇒ giật). Ảnh thu nhỏ chỉ dựng lúc rời màn / ẩn app (full).
+  let saveT = 0, saving = null, lastInput = 0, thumbDirty = false;
+  function dirty() { thumbDirty = true; clearTimeout(saveT); saveT = setTimeout(save, 1500); }
+  async function save(full) {
     clearTimeout(saveT); saveT = 0;
+    if (full !== true && (active || performance.now() - lastInput < 1200)) { saveT = setTimeout(save, 900); return; }
     meta.updated = Date.now();
     meta.pages = doc.pages.length;
     meta.title = $(".ed-title").value.trim() || "Ghi chú";
     saving = (async () => {
       await db.put("docs", doc);
-      try { meta.thumb = await makeThumb(doc.pages[0]); } catch (e) { /* */ }
+      if (full === true && thumbDirty) { thumbDirty = false; try { meta.thumb = await makeThumb(doc.pages[0]); } catch (e) { /* */ } }
       await db.put("notes", meta);
     })();
     await saving;
@@ -260,14 +264,28 @@ export async function openEditor(root, id) {
 
   // ------------------------------------------------------------------ nét bút
   let active = null;          // nét/thao tác đang chạy: { pid, pi, r, kind, ... }
-  let penDown = false;
+  let penDown = false, penSeen = false;
 
-  function startStroke(pi, r, e, pt) {
+  // ⭐ v0.3.0 — LỚP NÉT ĐANG VIẾT = một canvas CỠ MÀN HÌNH đè lên khung cuộn. Cũ: canvas phủ cỡ CẢ TRANG (~7 triệu điểm ảnh ở ×2)
+  //   ⇒ iPad xoá + ghép lớp khổng lồ mỗi khung = giật. Vẽ theo toạ độ trang qua setTransform; nhấc bút thì in vào canvas trang.
+  const liveCv = $(".live-layer");
+  const lv = liveCv.getContext("2d", { desynchronized: true });
+  let lt = null;   // { k, ox, oy, w, h, dpr } của trang đang viết
+  function liveBegin(pi, hl) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), W = liveCv.clientWidth, H = liveCv.clientHeight;
+    if (liveCv.width !== Math.round(W * dpr) || liveCv.height !== Math.round(H * dpr)) { liveCv.width = Math.round(W * dpr); liveCv.height = Math.round(H * dpr); }
+    const r = pv[pi].el.getBoundingClientRect(), b = liveCv.getBoundingClientRect();
+    lt = { k: r.width / PAGE_W, ox: r.left - b.left, oy: r.top - b.top, w: r.width, h: r.height, dpr };
+    liveCv.classList.toggle("hl", !!hl);
+  }
+  let lvBox = null;   // vùng (px thiết bị) đã vẽ khung trước ⇒ chỉ xoá vùng đó, không xoá cả lớp
+  function liveClear() { lv.setTransform(1, 0, 0, 1, 0, 0); lv.clearRect(0, 0, liveCv.width, liveCv.height); lvBox = null; }
+
+  function startStroke(pi, r, e) {
     const t = set.tool;
     const s = { id: uid(), t, c: set[t].c, w: SIZES[t][set[t].wi], pr: e.pointerType === "pen", p: [] };
-    active = { pid: e.pointerId, pi, r, kind: "stroke", s, drawn: 1 };
-    placeOverlay(pi);
-    if (t === "hl") overlay.classList.add("hl");
+    active = { pid: e.pointerId, pi, r, kind: "stroke", s, raw: null, pred: null };
+    liveBegin(pi, t === "hl");
     live({ k: "s0", pi, s: { id: s.id, t: s.t, c: s.c, w: s.w, pr: s.pr } });
     addPts(e);
   }
@@ -277,15 +295,30 @@ export async function openEditor(root, id) {
     return list && list.length ? list : [e];
   }
 
+  // ⭐ v0.3.0 — LÀM MƯỢT lúc thu điểm (streamline): điểm lưu = điểm trước + 60 % quãng tới điểm thật ⇒ hết răng cưa do tay run /
+  //   cảm biến nhiễu; lực nhấn đổi dần (35 %/điểm) ⇒ độ dày không nhảy cục. Lúc vẽ luôn nối thêm điểm THẬT cuối cùng (+ điểm
+  //   đoán trước nếu trình duyệt có) ⇒ mực bám sát đầu bút, không bị "đuổi theo".
+  const SLOW = { pen: 0.4, mouse: 0.3, touch: 0.45 };
   function addPts(e) {
-    const a = active, s = a.s, fresh = [];
+    const a = active, s = a.s, fresh = [], sl = SLOW[e.pointerType] ?? 0.4;
     for (const ev of evPts(e)) {
       const { x, y } = toUnit(a.r, ev.clientX, ev.clientY);
-      const pr = s.pr ? Math.max(0.05, ev.pressure || 0.5) : 0.5;
+      const rp = s.pr ? Math.max(0.08, ev.pressure || 0.5) : 0.5;
+      a.raw = [x, y, rp];
       const n = s.p.length;
-      if (n && Math.hypot(x - s.p[n - 3], y - s.p[n - 2]) < 0.5) { s.p[n - 1] = Math.max(s.p[n - 1], pr); continue; }
-      const xr = Math.round(x * 10) / 10, yr = Math.round(y * 10) / 10, prr = Math.round(pr * 100) / 100;
+      let px = x, py = y, pp = rp;
+      if (n) {
+        const lx = s.p[n - 3], ly = s.p[n - 2], lp = s.p[n - 1];
+        px = lx + (x - lx) * (1 - sl); py = ly + (y - ly) * (1 - sl); pp = lp + (rp - lp) * 0.35;
+        if (Math.hypot(px - lx, py - ly) < 0.4) continue;
+      }
+      const xr = Math.round(px * 10) / 10, yr = Math.round(py * 10) / 10, prr = Math.round(pp * 100) / 100;
       s.p.push(xr, yr, prr); fresh.push(xr, yr, prr);
+    }
+    a.pred = null;
+    if (e.getPredictedEvents && s.t === "pen") {
+      const pe = e.getPredictedEvents();
+      if (pe && pe.length) { const q = pe[pe.length - 1], u = toUnit(a.r, q.clientX, q.clientY); a.pred = [u.x, u.y, a.raw ? a.raw[2] : 0.5]; }
     }
     if (fresh.length) live({ k: "s+", id: s.id, p: fresh });
     drawLive();
@@ -297,10 +330,27 @@ export async function openEditor(root, id) {
     liveRaf = requestAnimationFrame(() => {
       liveRaf = 0;
       const a = active;
-      if (!a || a.kind !== "stroke") return;
-      const k = pv[a.pi].k, s = a.s, n = s.p.length / 3;
-      if (s.t === "hl") { octx.clearRect(0, 0, overlay.width, overlay.height); drawStroke(octx, s, k); return; }
-      if (n - 1 > a.drawn) { penSegments(octx, s, k, 0, 0, a.drawn, n - 1); a.drawn = n - 1; }
+      if (!a || a.kind !== "stroke" || !lt) return;
+      const s = a.s;
+      let pts = s.p;
+      if (a.raw || a.pred) {
+        pts = s.p.slice();
+        if (a.raw && pts.length) { const n = pts.length; if (Math.hypot(a.raw[0] - pts[n - 3], a.raw[1] - pts[n - 2]) > 0.4) pts.push(a.raw[0], a.raw[1], pts[n - 1]); }
+        if (a.pred) pts.push(a.pred[0], a.pred[1], pts[pts.length - 1]);
+      }
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (let i = 0; i < pts.length; i += 3) { const x = pts[i], y = pts[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      const m = s.w * 1.4 + 3, f = lt.k * lt.dpr;
+      const box = [Math.floor(lt.dpr * lt.ox + (x0 - m) * f), Math.floor(lt.dpr * lt.oy + (y0 - m) * f), Math.ceil(lt.dpr * lt.ox + (x1 + m) * f), Math.ceil(lt.dpr * lt.oy + (y1 + m) * f)];
+      lv.setTransform(1, 0, 0, 1, 0, 0);
+      const cb = lvBox ? [Math.min(lvBox[0], box[0]), Math.min(lvBox[1], box[1]), Math.max(lvBox[2], box[2]), Math.max(lvBox[3], box[3])] : box;
+      lv.clearRect(cb[0], cb[1], cb[2] - cb[0], cb[3] - cb[1]);
+      lvBox = box;
+      lv.setTransform(lt.dpr, 0, 0, lt.dpr, lt.dpr * lt.ox, lt.dpr * lt.oy);
+      lv.save();
+      lv.beginPath(); lv.rect(0, 0, lt.w, lt.h); lv.clip();
+      drawStroke(lv, pts === s.p ? s : { ...s, p: pts }, lt.k);
+      lv.restore();
     });
   }
 
@@ -318,12 +368,15 @@ export async function openEditor(root, id) {
   function endStroke() {
     const a = active, s = a.s, pg = doc.pages[a.pi], v = pv[a.pi];
     if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
-    if (!s.p.length) { clearOverlay(); return; }
+    if (!s.p.length) { liveClear(); return; }
+    // nét kết thúc ĐÚNG chỗ nhấc bút (điểm làm mượt luôn trễ sau điểm thật một chút)
+    const n = s.p.length;
+    if (a.raw && Math.hypot(a.raw[0] - s.p[n - 3], a.raw[1] - s.p[n - 2]) > 0.4) s.p.push(Math.round(a.raw[0] * 10) / 10, Math.round(a.raw[1] * 10) / 10, s.p[n - 1]);
     s.p = densify(s.p, s.t === "hl" ? 6 : 3);
     snap(a.pi);
     pg.strokes.push(s);
-    clearOverlay();
-    if (v.ctx) drawStroke(v.ctx, s, v.k);
+    if (v.ctx) drawStroke(v.ctx, s, v.k);   // in vào trang TRƯỚC rồi mới xoá lớp nét ⇒ không chớp
+    liveClear(); lt = null;
     live({ k: "s1", id: s.id, s });
     dirty();
   }
@@ -625,14 +678,33 @@ export async function openEditor(root, id) {
   const pointInSel = (pi, x, y) => sel && sel.pi === pi && x >= sel.box.x && x <= sel.box.x + sel.box.w && y >= sel.box.y && y <= sel.box.y + sel.box.h;
 
   // ------------------------------------------------------------------ con trỏ
+  // ⭐ v0.3.0 (thầy 25/10: "khi đè tay lên viết, nét bút bị dừng và có menu của trình duyệt hiện lên") — chặn MỌI hành vi gốc của
+  //   iOS trên vùng viết: menu Sao chép/Dịch thuật khi tì tay, kính lúp, bôi chọn chữ, Scribble của Apple Pencil, chạm đúp phóng.
+  //   Chính các hành vi đó bắn pointercancel làm nét đứt. Pointer events vẫn tới đủ — app tự cuộn/phóng.
+  const noNative = e => { if (!e.target.closest(".sel-menu, .text-edit, .add-page")) e.preventDefault(); };
+  wrap.addEventListener("touchstart", noNative, { passive: false });
+  wrap.addEventListener("touchmove", noNative, { passive: false });
+  wrap.addEventListener("contextmenu", e => e.preventDefault());
+  const noSelect = e => { if (!e.target.closest || !e.target.closest("input, textarea")) e.preventDefault(); };
+  document.addEventListener("selectstart", noSelect);
+
   wrap.addEventListener("pointerdown", e => {
     if (e.target.closest(".sel-menu, .text-edit, .add-page")) return;
+    lastInput = performance.now();
+    if (e.pointerType === "pen") {
+      penSeen = true;
+      // bút chạm ⇒ huỷ cử chỉ ngón/lòng bàn tay đang dở (tì tay trước khi đặt bút)
+      if (touches.size) { touches.clear(); g = null; stopInertia(); }
+      if (document.activeElement && document.activeElement.matches("input, textarea") && !document.activeElement.classList.contains("text-edit")) document.activeElement.blur();
+    }
+    // lòng bàn tay: vùng chạm to (> 44 px) sau khi đã dùng bút ⇒ bỏ qua hẳn
+    if (e.pointerType === "touch" && penSeen && Math.max(e.width || 0, e.height || 0) > 44) return;
     const fingerAsGesture = e.pointerType === "touch" && (!set.finger || penDown || active || touches.size);
     if (e.pointerType === "touch" && (fingerAsGesture || (set.finger && set.tool === "text"))) {
       if (penDown) return;                                  // chống tì tay: bút đang chạm thì bỏ qua ngón
       if (active && active.kind === "stroke" && e.pointerType === "touch" && active.touch && performance.now() - active.t0 < 180) {
         // ngón thứ 2 chạm ngay sau ngón 1 ⇒ đó là cử chỉ 2 ngón, huỷ nét vừa bắt đầu
-        clearOverlay(); touches.set(active.pid, active.firstPt); active = null;
+        liveClear(); lt = null; touches.set(active.pid, active.firstPt); active = null;
       }
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { wrap.setPointerCapture(e.pointerId); } catch (er) { /* */ }
@@ -669,8 +741,9 @@ export async function openEditor(root, id) {
     const a = active;
     if (!a || a.pid !== e.pointerId) return;
     e.preventDefault();
+    lastInput = performance.now();
+    if (a.kind === "stroke") return addPts(e);   // khung trang chốt lúc đặt bút (đang viết không cuộn) — khỏi đo lại mỗi lần
     a.r = pv[a.pi].el.getBoundingClientRect();
-    if (a.kind === "stroke") return addPts(e);
     const u = toUnit(a.r, e.clientX, e.clientY);
     if (a.kind === "erase") { for (const ev of evPts(e)) { const q = toUnit(a.r, ev.clientX, ev.clientY); eraseAt(q.x, q.y); } drawEraserRing(u.x, u.y); }
     else if (a.kind === "lasso") { a.poly.push(u.x, u.y); drawLassoPath(a.poly); }
@@ -769,7 +842,7 @@ export async function openEditor(root, id) {
       const c = currentPage(), r = pv[c].el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
       const s = PAGE_W / r.width, pg = doc.pages[c];
       const cl = (v, m) => Math.max(0, Math.min(m, v));
-      sender.send({ k: "view", pi: c, x0: cl((w.left - r.left) * s, PAGE_W), y0: cl((w.top + 64 - r.top) * s, pg.h), x1: cl((w.right - r.left) * s, PAGE_W), y1: cl((w.bottom - r.top) * s, pg.h) });
+      sender.send({ k: "view", pi: c, x0: cl((w.left - r.left) * s, PAGE_W), y0: cl((w.top - r.top) * s, pg.h), x1: cl((w.right - r.left) * s, PAGE_W), y1: cl((w.bottom - r.top) * s, pg.h) });
     }, 120);
   }
   function paintLive() {
@@ -831,7 +904,7 @@ export async function openEditor(root, id) {
   document.addEventListener("keydown", onKey);
   const onResize = () => { layout(); refreshVisible(); };
   window.addEventListener("resize", onResize);
-  const onHide = () => { if (document.visibilityState === "hidden" && saveT) save(); };
+  const onHide = () => { if (document.visibilityState === "hidden" && (saveT || thumbDirty)) save(true); };
   document.addEventListener("visibilitychange", onHide);
   const onLeave = () => sender.stop();   // đóng/tải lại trang khi đang LIVE ⇒ báo máy chiếu thôi chờ (khỏi kẹt "Connecting…")
   window.addEventListener("pagehide", onLeave);
@@ -851,7 +924,8 @@ export async function openEditor(root, id) {
     document.removeEventListener("visibilitychange", onHide);
     window.removeEventListener("pagehide", onLeave);
     sender.stop();
-    if (saveT || $(".ed-title").value !== meta.title) await save();
+    document.removeEventListener("selectstart", noSelect);
+    if (saveT || thumbDirty || $(".ed-title").value !== meta.title) await save(true);
     else if (saving) await saving;
     pv.forEach(v => { if (v.cv) v.cv.width = v.cv.height = 0; });
   };
