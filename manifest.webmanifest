@@ -1,0 +1,17 @@
+{
+  "name": "myNote — ANDREW CLASSES",
+  "short_name": "myNote",
+  "description": "Ghi chú viết tay cho iPad, truyền trực tiếp lên AWord",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#f6f7fb",
+  "theme_color": "#f6f7fb",
+  "lang": "vi",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

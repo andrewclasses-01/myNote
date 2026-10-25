@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AWord · NOTE (bản mẫu)</title>
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<style>
+/* BẢN MẪU phía AWord — thanh nút giả lập trang chủ AWord + nút NOTE mới + màn chiếu NOTE.
+   Khi duyệt xong: nút + màn này chuyển vào AWord (core/note-screen.js), kênh LIVE đổi sang WebRTC + Firestore. */
+:root { --ink: #1c2b3d; --muted: #6b7c90; --line: #e0e8f2; --blue: #2f7bff; --note1: #ff8a4c; --note2: #e8506a;
+  --font: "Montserrat", -apple-system, "Segoe UI", Roboto, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: var(--font); color: var(--ink); background: #f4f7fb; overflow: hidden; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+.ic { width: 24px; height: 24px; }
+
+/* ---- trang chủ AWord giả lập ---- */
+.top { height: 84px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--line); }
+.logo b { display: block; font-size: 34px; font-weight: 900; letter-spacing: -.02em; background: linear-gradient(90deg, #2f7bff, #7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1; }
+.logo small { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .3em; color: var(--muted); margin-top: 3px; }
+.right { display: flex; align-items: center; gap: 10px; }
+.appbtn { width: 46px; height: 46px; border-radius: 13px; border: 1.5px solid var(--line); background: #fff; color: #4a5b70; display: inline-flex; align-items: center; justify-content: center;
+  transition: background .14s, border-color .14s, color .14s, transform .1s; position: relative; }
+.appbtn:hover { background: #eef4fc; border-color: #cddcf0; color: var(--blue); }
+.appbtn.sd { background: linear-gradient(135deg, #ffd66b, #f5a623); border-color: #f0b84a; color: #6b4300; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #2f7bff, #7c3aed); color: #fff; font-weight: 800; display: grid; place-items: center; }
+
+/* ⭐ NÚT NOTE MỚI */
+.notebtn { width: auto; padding: 0 14px 0 11px; gap: 8px; border: 0; color: #fff; background: linear-gradient(135deg, var(--note1), var(--note2));
+  box-shadow: 0 6px 16px rgba(232, 80, 106, .35); font-weight: 800; font-size: 14px; letter-spacing: .08em; }
+.notebtn:hover { color: #fff; background: linear-gradient(135deg, #ff9a62, #f0607a); border: 0; transform: translateY(-1px); }
+.notebtn .ic { width: 22px; height: 22px; }
+.notebtn .badge { position: absolute; top: -5px; right: -5px; height: 18px; padding: 0 6px; border-radius: 9px; background: #e11d48; color: #fff; font-size: 10px; letter-spacing: .06em;
+  display: none; align-items: center; gap: 4px; box-shadow: 0 0 0 2px #fff; }
+.notebtn .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: blink 1s infinite; }
+.notebtn.live .badge { display: inline-flex; }
+@keyframes blink { 50% { opacity: .25; } }
+.callout { position: absolute; top: 92px; background: #1c2b3d; color: #fff; font-size: 13px; font-weight: 600; padding: 9px 13px; border-radius: 10px; white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.callout::before { content: ""; position: absolute; top: -6px; left: 50%; margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: #1c2b3d; }
+.home { padding: 26px 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; opacity: .55; filter: saturate(.7); }
+.fake { height: 150px; border-radius: 16px; background: #fff; border: 1.5px solid var(--line); padding: 16px; }
+.fake i { display: block; height: 70px; border-radius: 10px; background: linear-gradient(135deg, #dbe8ff, #f1e8ff); margin-bottom: 12px; }
+.fake b { display: block; height: 12px; width: 70%; border-radius: 6px; background: #e6edf5; }
+
+/* ---- MÀN NOTE (chiếu) ---- */
+.stage { position: fixed; inset: 0; z-index: 10; background: radial-gradient(1200px 700px at 50% 0%, #2b3550, #161b28 70%); display: none; }
+.stage.open { display: block; animation: fade .25s both; }
+@keyframes fade { from { opacity: 0; } }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bar { position: absolute; z-index: 2; left: 18px; right: 18px; top: 16px; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+.bar > * { pointer-events: auto; }
+.glass { background: rgba(15, 20, 32, .55); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; color: #e8edf6; }
+.title { display: flex; align-items: center; gap: 12px; padding: 8px 16px 8px 10px; min-width: 0; }
+.title .lg { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, var(--note1), var(--note2)); color: #fff; flex: none; }
+.title .lg .ic { width: 20px; height: 20px; }
+.title b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+.title small { display: block; font-size: 12px; color: #9fb0c8; font-weight: 600; }
+.status { display: flex; align-items: center; gap: 8px; padding: 0 14px; height: 52px; font-weight: 700; font-size: 13px; }
+.status i { width: 9px; height: 9px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 4px rgba(245, 158, 11, .2); }
+.status.on i { background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, .22); animation: blink 1.4s infinite; }
+.sp { flex: 1; }
+.seg { display: flex; padding: 4px; gap: 2px; }
+.seg button { height: 42px; padding: 0 14px; border-radius: 10px; font-size: 13.5px; font-weight: 700; color: #b8c5d8; display: flex; align-items: center; gap: 7px; }
+.seg button .ic { width: 18px; height: 18px; }
+.seg button.on { background: rgba(255,255,255,.14); color: #fff; }
+.iconbtn { width: 52px; height: 52px; display: grid; place-items: center; }
+.iconbtn:hover { background: rgba(255,255,255,.12); }
+.wait { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; pointer-events: none; transition: opacity .3s; }
+.wait.hide { opacity: 0; }
+.wait-card { text-align: center; color: #dfe7f3; max-width: 560px; }
+.ipad { width: 210px; height: 150px; margin: 0 auto 26px; border-radius: 18px; border: 6px solid #3b465f; background: #fff; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,.35); overflow: hidden; }
+.ipad svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ipad path { stroke-dasharray: 260; stroke-dashoffset: 260; animation: draw 2.6s ease-in-out infinite; }
+@keyframes draw { 60%, 100% { stroke-dashoffset: 0; } }
+.wait-card h2 { font-size: 28px; margin: 0 0 10px; color: #fff; }
+.wait-card ol { text-align: left; display: inline-block; margin: 6px 0 0; padding-left: 20px; line-height: 1.9; font-size: 15.5px; color: #c4d0e2; }
+.wait-card b { color: #fff; }
+.pgtag { position: absolute; z-index: 2; right: 20px; bottom: 18px; padding: 8px 14px; font-weight: 800; font-size: 14px; }
+.note-mock { position: absolute; z-index: 2; left: 20px; bottom: 18px; padding: 8px 12px; font-size: 12px; color: #9fb0c8; font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><b>AWord</b><small>in ANDREW CLASSES</small></div>
+  <div class="right" id="right"></div>
+</header>
+<div class="home" id="home"></div>
+
+<div class="stage" id="stage">
+  <canvas id="cv"></canvas>
+  <div class="wait" id="wait">
+    <div class="wait-card">
+      <div class="ipad"><svg viewBox="0 0 200 140"><path d="M30 90 C 55 40, 80 120, 105 70 S 150 50, 172 84" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round"/></svg></div>
+      <h2>Chờ iPad bật LIVE</h2>
+      <ol>
+        <li>Mở <b>myNote</b> trên iPad, mở một ghi chú</li>
+        <li>Bấm nút <b>LIVE</b> ở góc phải trên</li>
+        <li>Viết gì trên iPad, máy chiếu hiện ngay tại đây</li>
+      </ol>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="title glass"><span class="lg" id="lg"></span><div><b id="ttl">NOTE</b><small id="sub">Màn chiếu ghi chú</small></div></div>
+    <div class="status glass" id="st"><i></i><span>Chưa có iPad</span></div>
+    <div class="sp"></div>
+    <div class="seg glass" id="seg"></div>
+    <div class="glass" style="display:flex"><button class="iconbtn" id="fs" title="Toàn màn hình"></button><button class="iconbtn" id="close" title="Đóng"></button></div>
+  </div>
+  <div class="pgtag glass" id="pg" hidden></div>
+  <div class="note-mock glass">BẢN MẪU · nối qua 2 tab cùng trình duyệt</div>
+</div>
+
+<script type="module">
+import { icon } from "./js/icons.js";
+import { PAGE_W, drawPaper, drawStroke } from "./js/ink.js";
+import { createLiveViewer } from "./js/live.js";
+
+// ---------------- trang chủ AWord giả lập + nút NOTE
+const right = document.getElementById("right");
+right.innerHTML = `
+  <button class="appbtn sd" title="Showdown results">${icon("trophy")}</button>
+  <button class="appbtn" title="Class stats">${icon("chart")}</button>
+  <button class="appbtn notebtn" id="noteBtn" title="NOTE — chiếu ghi chú viết tay từ iPad">${icon("rename")}<span>NOTE</span><span class="badge">LIVE</span></button>
+  <button class="appbtn" title="iPad">${icon("tablet")}</button>
+  <button class="appbtn" title="Settings">${icon("settings")}</button>
+  <span class="avatar">A</span>`;
+document.getElementById("home").innerHTML = Array.from({ length: 12 }, () => `<div class="fake"><i></i><b></b></div>`).join("");
+const noteBtn = document.getElementById("noteBtn");
+const call = document.createElement("div");
+call.className = "callout";
+call.textContent = "Nút NOTE mới — cạnh Showdown / iPad";
+document.body.append(call);
+const placeCall = () => { const r = noteBtn.getBoundingClientRect(); call.style.left = r.left + r.width / 2 - call.offsetWidth / 2 + "px"; };
+placeCall(); addEventListener("resize", placeCall);
+
+// ---------------- màn NOTE
+const stage = document.getElementById("stage"), cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const wait = document.getElementById("wait"), st = document.getElementById("st"), ttl = document.getElementById("ttl"), sub = document.getElementById("sub"), pgEl = document.getElementById("pg");
+document.getElementById("lg").innerHTML = icon("rename");
+document.getElementById("fs").innerHTML = icon("fit");
+document.getElementById("close").innerHTML = icon("x");
+const MODES = [["follow", "eye", "Theo iPad"], ["page", "file", "Cả trang"], ["width", "fit", "Vừa ngang"]];
+let mode = "follow";
+try { mode = localStorage.getItem("awnote.mode") || mode; } catch (e) { /* */ }
+const seg = document.getElementById("seg");
+function paintSeg() {
+  seg.innerHTML = MODES.map(([k, ic, l]) => `<button data-m="${k}" class="${mode === k ? "on" : ""}">${icon(ic)}${l}</button>`).join("");
+  seg.querySelectorAll("[data-m]").forEach(b => (b.onclick = () => { mode = b.dataset.m; try { localStorage.setItem("awnote.mode", mode); } catch (e) { /* */ } paintSeg(); kick(); }));
+}
+paintSeg();
+
+const S = { title: "", n: 0, pi: 0, pages: new Map(), imgs: new Map(), pend: new Map(), view: null, laser: [], pad: false };
+let cam = null;   // khung đang chiếu (đơn vị trang), trượt mềm về khung đích
+
+function onMessage(m) {
+  switch (m.k) {
+    case "doc": S.title = m.title; S.n = m.n; if (m.pi !== S.pi) { S.pi = m.pi; S.view = null; } break;
+    case "page": S.pages.set(m.pi, m.page); break;
+    case "img": { const im = new Image(); im.onload = kick; im.src = m.data; S.imgs.set(m.id, im); break; }
+    case "s0": S.pend.set(m.s.id, { ...m.s, p: [], pi: m.pi }); if (m.pi !== S.pi && S.pages.has(m.pi)) S.pi = m.pi; break;
+    case "s+": { const s = S.pend.get(m.id); if (s) s.p.push(...m.p); break; }
+    case "s1": { const s = S.pend.get(m.id); S.pend.delete(m.id); const pg = s && S.pages.get(s.pi); if (pg) pg.strokes.push(m.s); break; }
+    case "laser": S.laser.push({ pi: m.pi, x: m.x, y: m.y, t: performance.now() }); break;
+    case "view": S.view = m; break;
+  }
+  paintInfo();
+  kick();
+}
+function paintInfo() {
+  const has = S.pad && S.pages.has(S.pi);
+  wait.classList.toggle("hide", has);
+  ttl.textContent = S.title || "NOTE";
+  sub.textContent = S.pad ? "đang viết trực tiếp từ iPad" : "Màn chiếu ghi chú";
+  st.classList.toggle("on", S.pad);
+  st.querySelector("span").textContent = S.pad ? "iPad đang LIVE" : "Chưa có iPad";
+  pgEl.hidden = !has;
+  pgEl.textContent = `Trang ${S.pi + 1} / ${S.n}`;
+  noteBtn.classList.toggle("live", S.pad);
+}
+let viewer = null;
+function connect() {
+  viewer = createLiveViewer({ onMessage, onPad: on => { S.pad = on; paintInfo(); kick(); } });
+}
+connect();   // AWord thật: luôn nghe nhẹ để nút NOTE hiện chấm LIVE khi iPad đang phát
+
+function targetRect(pg) {
+  const W = cv.clientWidth, H = cv.clientHeight, asp = W / H;
+  const v = S.view && S.view.pi === S.pi ? S.view : null;
+  if (mode === "page" || (!v && mode === "follow")) return { x: 0, y: 0, w: PAGE_W, h: pg.h };
+  if (mode === "width") {
+    const h = PAGE_W / asp, cy = v ? (v.y0 + v.y1) / 2 : h / 2;
+    return { x: 0, y: Math.max(0, Math.min(pg.h - h, cy - h / 2)), w: PAGE_W, h };
+  }
+  const pad = 20;
+  return { x: v.x0 - pad, y: v.y0 - pad, w: v.x1 - v.x0 + pad * 2, h: v.y1 - v.y0 + pad * 2 };
+}
+
+let raf = 0;
+function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+function frame() {
+  raf = 0;
+  if (!stage.classList.contains("open")) return;
+  const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const pg = S.pages.get(S.pi);
+  if (!pg || !S.pad) return;
+  const tg = targetRect(pg);
+  let moving = false;
+  if (!cam) cam = { ...tg };
+  else for (const k of ["x", "y", "w", "h"]) { const d = tg[k] - cam[k]; if (Math.abs(d) > 0.3) { cam[k] += d * 0.16; moving = true; } else cam[k] = tg[k]; }
+  // khung trong ⇒ vừa màn (chừa lề trên cho thanh nút)
+  const top = 84, padX = 30, padB = 24;
+  const k = Math.min((W - padX * 2) / cam.w, (H - top - padB) / cam.h);
+  const ox = (W - cam.w * k) / 2 - cam.x * k, oy = top + (H - top - padB - cam.h * k) / 2 - cam.y * k;
+  // bóng + trang
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = "#fff"; ctx.fillRect(ox, oy, PAGE_W * k, pg.h * k);
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath(); ctx.rect(ox, oy, PAGE_W * k, pg.h * k); ctx.clip();
+  ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, oy * dpr);
+  drawPaper(ctx, pg, k, pg.img ? S.imgs.get(pg.img) && S.imgs.get(pg.img).complete ? S.imgs.get(pg.img) : null : null);
+  for (const s of pg.strokes) drawStroke(ctx, s, k);
+  for (const s of S.pend.values()) if (s.pi === S.pi && s.p.length) drawStroke(ctx, s, k);
+  // laser mờ dần
+  const now = performance.now();
+  while (S.laser.length && now - S.laser[0].t > 900) S.laser.shift();
+  ctx.lineCap = ctx.lineJoin = "round";
+  for (let i = 1; i < S.laser.length; i++) {
+    const a = S.laser[i - 1], b = S.laser[i];
+    if (a.pi !== S.pi || b.pi !== S.pi || b.t - a.t > 80) continue;
+    const al = Math.max(0, 1 - (now - b.t) / 900);
+    for (const [c, w, f] of [["#ff2d55", 18, 0.3], ["#ff2d55", 7, 1], ["#fff", 2, 0.9]]) {
+      ctx.globalAlpha = al * f; ctx.strokeStyle = c; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(a.x * k, a.y * k); ctx.lineTo(b.x * k, b.y * k); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  if (moving || S.laser.length) kick();
+}
+
+function open() { stage.classList.add("open"); cam = null; call.remove(); paintInfo(); viewer.need(); kick(); }
+function close() { stage.classList.remove("open"); if (document.fullscreenElement) document.exitFullscreen(); }
+noteBtn.onclick = open;
+document.getElementById("close").onclick = close;
+document.getElementById("fs").onclick = () => document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen().catch(() => {});
+addEventListener("resize", kick);
+addEventListener("keydown", e => { if (e.key === "Escape" && stage.classList.contains("open") && !document.fullscreenElement) close(); });
+if (location.hash === "#open") open();
+</script>
+</body>
+</html>
