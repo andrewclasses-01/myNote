@@ -41,7 +41,34 @@ Thư viện + ảnh thu nhỏ · bút lực nhấn · dạ quang · tẩy từng
 nhập PDF 2 trang · LIVE sang tab `aword-note.html` (nét, chế độ Theo iPad, chấm LIVE trên nút) · không lỗi console.
 CHƯA kiểm trên iPad thật (Apple Pencil, quán tính cuộn, Safari).
 
+## Chặng 2 — 25/10/2026 — v0.1.1 sửa mẫu thư viện (máy 1)
+
+### Yêu cầu của thầy
+1. Bỏ các phần Tất cả ghi chú, Sử dụng gần đây, Chưa phân loại.
+2. Cột thư mục: bấm chọn mục nào mới hiện số mục bên trong, không hiện sẵn.
+3. Nút "Màn NOTE AWord" chỉ dùng icon.
+4. Thêm nút cài đặt vào cột thư mục để thiết lập những cái cần thiết.
+
+### Đã làm
+- `library.js`: bỏ hẳn hàng tab (cả tab Yêu thích — đã có mục Yêu thích ở thanh bên) và bộ lọc `view.tab`; tiêu đề trang đứng một mình.
+- Số đếm chỉ vẽ ở mục ĐANG CHỌN (Ghi chú / Yêu thích / từng thư mục); Trang chủ không có số.
+- Nút AWord thành nút tròn chỉ icon (cast), tên đầy đủ nằm ở `title` + `aria-label`.
+- Bánh răng ở chân cột thư mục (cạnh dòng "Bản mẫu · lưu trong máy này") ⇒ `js/settings.js` (mới):
+  Giấy mặc định · Ngón tay vẽ · Kiểu tẩy (ghi thẳng khoá `mynote.paper` / `mynote.tools` mà màn viết đọc) ·
+  Tự bật LIVE khi mở ghi chú (`mynote.autolive`, `editor.js` đọc lúc mở) · Tài khoản Google (nút "Sắp có") ·
+  Sao lưu: Xuất toàn bộ ra 1 file .json (ảnh nền nhúng dataURL) / Khôi phục (thêm-ghi đè theo mã) + dung lượng đang dùng · phiên bản.
+- `sw.js` VER 0.1.1 + thêm settings.js vào bộ đệm.
+
+### Lỗi đã gặp / cách gỡ
+- Tên thư mục bị căn giữa: luật `.nav-it span { flex:1 }` cũng kéo giãn ô icon `.fic` ⇒ `.nav-it .fic { flex:none }`.
+- Icon thư mục đang chọn bị luật `.nav-it.on .ic` tô hồng mất màu thư mục ⇒ `.nav-it.folder.on .ic { color: inherit }`.
+
+### Đã kiểm (máy tính 1180×820)
+Không còn hàng tab; chỉ thư mục đang chọn có số; nút icon AWord; hộp Cài đặt mở, các nút ghi đúng localStorage (đã trả lại giá trị cũ sau khi thử).
+Chưa thử Xuất/Khôi phục bằng file thật; chưa thử trên iPad.
+
 ## VIỆC ĐANG CHỜ
+- [ ] Thử nút Xuất / Khôi phục sao lưu bằng file thật.
 - [ ] Thầy thử mẫu trên iPad thật (bấm `CHAY THU TREN IPAD.bat` trên máy tính, iPad cùng Wi-Fi mở địa chỉ nó in ra) và duyệt/góp ý.
 - [ ] Tạo kho GitHub `andrewclasses-01/myNote` + GitHub Pages (cần thầy đồng ý trước khi đẩy).
 - [ ] Firebase: đăng nhập + đồng bộ (Firestore + Storage, offline trước).

@@ -3,13 +3,13 @@
 ## Mục đích
 App web (PWA, cài lên Màn hình chính iPad) thay Notability cho lớp học của thầy Andrew:
 - Viết vẽ bằng Apple Pencil (có lực nhấn), dạ quang, tẩy, lasso, gõ chữ, bút laser; nhập PDF / ảnh chụp bài làm để chữa.
-- Thư viện kiểu Notability: Trang chủ, Ghi chú, Yêu thích, Thư mục, tab Tất cả / Gần đây / Yêu thích / Chưa phân loại.
+- Thư viện kiểu Notability: Trang chủ, Ghi chú, Yêu thích, Thư mục (KHÔNG có hàng tab — thầy bỏ 25/10); số mục chỉ hiện ở mục đang chọn.
 - **LIVE**: nét viết trên iPad hiện tức thì trên máy chiếu qua **nút NOTE mới của AWord** (nằm cạnh Showdown / Stats / iPad).
 - Đồng bộ ghi chú giữa các máy qua **Firebase của AWord** (đăng nhập cùng tài khoản Google như AWord).
 - iPad luôn NẰM NGANG (khung chuẩn 1180×820).
 
 ## Trạng thái
-**v0.1.0 = BẢN MẪU** (25/10/2026) chờ thầy duyệt giao diện + thao tác trên iPad thật.
+**v0.1.1 = BẢN MẪU** (25/10/2026; v0.1.1 = thư viện bỏ tab, số đếm chỉ ở mục đang chọn, nút cài đặt) chờ thầy duyệt giao diện + thao tác trên iPad thật.
 - Đã có: thư viện, màn viết đủ công cụ, nhập PDF/ảnh, hoàn tác/làm lại, PWA (manifest + sw.js), LIVE qua BroadcastChannel.
 - CHƯA có: Firebase (đăng nhập + đồng bộ), LIVE thật iPad → máy chiếu (WebRTC), nút NOTE trong AWord thật.
   Bản mẫu chỉ lưu IndexedDB trong máy; LIVE chỉ nối 2 tab cùng trình duyệt cùng máy.
@@ -33,6 +33,7 @@ App web (PWA, cài lên Màn hình chính iPad) thay Notability cho lớp học 
 | `js/pages.js` | ảnh nền trang (blob ⇒ ImageBitmap), ảnh thu nhỏ, nhập PDF (pdf.js 6.2.108 chép từ myLesson) / ảnh |
 | `js/db.js` | IndexedDB `mynote`: notes (thẻ nhẹ) · docs (nội dung) · folders · blobs (ảnh nền) |
 | `js/live.js` | kênh LIVE — API `send()` / `onMessage`; bản mẫu = BroadcastChannel |
+| `js/settings.js` | hộp Cài đặt (bánh răng chân cột thư mục): giấy, ngón tay, tẩy, tự LIVE, tài khoản (sắp có), sao lưu .json |
 | `js/ui.js` | menu nổi, hộp hỏi, xác nhận, toast, giữ-để-mở-menu |
 | `aword-note.html` | BẢN MẪU phía AWord: thanh nút giả + nút NOTE + màn chiếu (Theo iPad / Cả trang / Vừa ngang) |
 | `sw.js` | mạng trước, rớt mạng dùng đệm; đổi code ⇒ tăng `VER` |

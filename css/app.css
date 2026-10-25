@@ -55,19 +55,39 @@ input, textarea { font: inherit; color: inherit; }
 .nav-it.on .ic { color: var(--accent); }
 .side-h { display: flex; align-items: center; justify-content: space-between; padding: 16px 6px 4px 12px; color: var(--muted); font-size: 14px; font-weight: 600; }
 .folders { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; margin: 0 -4px; padding: 0 4px; }
-.folder .fic { display: grid; }
+.nav-it .fic { display: grid; flex: none; }
+.nav-it.folder.on .ic { color: inherit; }
 .folder .fic .ic { fill: currentColor; fill-opacity: .18; }
 .side-empty { color: var(--muted); font-size: 13.5px; padding: 8px 12px; }
-.side-foot { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); padding: 10px 8px 0; border-top: 1px solid #dfe4ec; }
+.side-foot { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); padding: 8px 0 0 8px; border-top: 1px solid #dfe4ec; }
+.side-foot span:nth-child(2) { flex: 1; }
+.side-foot .icon-btn { width: 40px; height: 40px; color: #475569; }
+.side-foot .icon-btn .ic { width: 22px; height: 22px; transition: transform .3s; }
+.side-foot .icon-btn:hover .ic { transform: rotate(35deg); }
+/* hộp cài đặt */
+.modal.set { width: min(520px, calc(100vw - 32px)); padding: 0; overflow: hidden; }
+.set-h { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 12px 22px; }
+.set-h h3 { margin: 0; }
+.set-b { padding: 0 22px 22px; max-height: min(70vh, 640px); overflow-y: auto; }
+.set-g { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; margin-bottom: 6px; }
+.set-row b { display: block; font-size: 15px; }
+.set-row small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.seg2 { display: flex; background: #e9edf3; border-radius: 10px; padding: 3px; flex: none; }
+.seg2 button { padding: 7px 11px; border-radius: 8px; font-size: 13px; font-weight: 650; color: #475569; }
+.seg2 button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+.sw-t { width: 50px; height: 30px; border-radius: 15px; background: #cbd5e1; position: relative; flex: none; transition: background .2s; }
+.sw-t::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s; }
+.sw-t.on { background: #22c55e; }
+.sw-t.on::after { transform: translateX(20px); }
+.set-row .btn { height: 36px; padding: 0 14px; font-size: 13.5px; }
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .2); }
 
 .main { overflow-y: auto; padding: calc(26px + env(safe-area-inset-top)) 34px 40px; -webkit-overflow-scrolling: touch; }
 .main-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
-.main-h h1 { margin: 6px 0 10px; font-size: 38px; font-weight: 800; letter-spacing: -.03em; }
-.main-acts { display: flex; gap: 10px; padding-top: 6px; }
-.tabs { display: flex; gap: 26px; }
-.tab { font-size: 17px; color: #94a3b8; font-weight: 550; padding: 4px 0 8px; border-bottom: 3px solid transparent; }
-.tab.on { color: var(--ink); border-color: var(--accent); }
+.main-h h1 { margin: 6px 0 4px; font-size: 38px; font-weight: 800; letter-spacing: -.03em; }
+.main-acts { display: flex; align-items: center; gap: 10px; padding-top: 6px; }
+.icon-btn.round.big { width: 44px; height: 44px; color: #334155; }
 .quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .quick:empty { display: none; }
 .qa { background: var(--card); border-radius: var(--r); padding: 16px; text-align: left; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; transition: transform .15s, box-shadow .2s; }

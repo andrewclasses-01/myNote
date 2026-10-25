@@ -3,12 +3,13 @@ import { db, uid } from "./db.js";
 import { icon } from "./icons.js";
 import { newPage, makeThumb, importPdf, importImages, fmtDate } from "./pages.js";
 import { popMenu, askText, askConfirm, toast, onHold, esc } from "./ui.js";
+import { openSettings } from "./settings.js";
 
 const FOLDER_COLORS = ["#7c3aed", "#e11d48", "#0ea5e9", "#16a34a", "#f59e0b", "#64748b", "#db2777", "#0d9488"];
 const VIEW_KEY = "mynote.view";
 
 function loadView() {
-  try { return JSON.parse(sessionStorage.getItem(VIEW_KEY)) || { kind: "home", tab: "all" }; } catch (e) { return { kind: "home", tab: "all" }; }
+  try { return JSON.parse(sessionStorage.getItem(VIEW_KEY)) || { kind: "home" }; } catch (e) { return { kind: "home" }; }
 }
 function saveView(v) { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(v)); } catch (e) { /* */ } }
 
@@ -34,13 +35,13 @@ export async function showLibrary(root) {
       <nav class="side-nav"></nav>
       <div class="side-h"><span>Thư mục</span><button class="icon-btn" data-act="addFolder" title="Thư mục mới">${icon("plus")}</button></div>
       <div class="folders"></div>
-      <div class="side-foot"><span class="sync-dot"></span><span>Bản mẫu · lưu trong máy này</span></div>
+      <div class="side-foot"><span class="sync-dot"></span><span>Bản mẫu · lưu trong máy này</span><button class="icon-btn" data-act="settings" title="Cài đặt">${icon("settings")}</button></div>
     </aside>
     <main class="main">
       <header class="main-h">
-        <div><h1></h1><div class="tabs"></div></div>
+        <h1></h1>
         <div class="main-acts">
-          <button class="btn ghost" data-act="aword" title="Mở bản mẫu nút NOTE của AWord (màn máy chiếu)">${icon("cast")}<span>Màn NOTE AWord</span></button>
+          <button class="icon-btn round big" data-act="aword" title="Màn NOTE AWord (bản mẫu màn máy chiếu)" aria-label="Màn NOTE AWord">${icon("cast")}</button>
           <button class="btn primary" data-act="new">${icon("plus")}<span>Mới</span></button>
         </div>
       </header>
@@ -52,7 +53,7 @@ export async function showLibrary(root) {
   </div>`;
 
   const $ = s => root.querySelector(s);
-  const nav = $(".side-nav"), foldersEl = $(".folders"), grid = $(".grid"), h1 = $("h1"), tabs = $(".tabs"), quick = $(".quick");
+  const nav = $(".side-nav"), foldersEl = $(".folders"), grid = $(".grid"), h1 = $("h1"), quick = $(".quick");
 
   async function load() {
     [notes, folders] = await Promise.all([db.all("notes"), db.all("folders")]);
@@ -68,15 +69,17 @@ export async function showLibrary(root) {
       { kind: "all", ic: "notebook", label: "Ghi chú", n: notes.length },
       { kind: "fav", ic: "star", label: "Yêu thích", n: notes.filter(n => n.fav).length },
     ];
-    nav.innerHTML = navs.map(n => `<button class="nav-it ${view.kind === n.kind ? "on" : ""}" data-kind="${n.kind}">${icon(n.ic)}<span>${n.label}</span>${n.n != null ? `<em>${n.n.toLocaleString("vi-VN")}</em>` : ""}</button>`).join("");
-    nav.querySelectorAll("[data-kind]").forEach(b => (b.onclick = () => go({ kind: b.dataset.kind, folderId: "", tab: "all" })));
+    // thầy 25/10: số mục chỉ hiện ở mục ĐANG CHỌN, không hiện sẵn
+    nav.innerHTML = navs.map(n => `<button class="nav-it ${view.kind === n.kind ? "on" : ""}" data-kind="${n.kind}">${icon(n.ic)}<span>${n.label}</span>${n.n != null && view.kind === n.kind ? `<em>${n.n.toLocaleString("vi-VN")}</em>` : ""}</button>`).join("");
+    nav.querySelectorAll("[data-kind]").forEach(b => (b.onclick = () => go({ kind: b.dataset.kind, folderId: "" })));
     foldersEl.innerHTML = folders.length ? "" : `<div class="side-empty">Chưa có thư mục — bấm + để tạo</div>`;
     for (const f of folders) {
-      const n = notes.filter(x => x.folderId === f.id).length;
+      const on = view.kind === "folder" && view.folderId === f.id;
+      const n = on ? notes.filter(x => x.folderId === f.id).length : 0;
       const b = document.createElement("button");
-      b.className = "nav-it folder" + (view.kind === "folder" && view.folderId === f.id ? " on" : "");
-      b.innerHTML = `<span class="fic" style="color:${f.color}">${icon("folder")}</span><span>${esc(f.name)}</span><em>${n || ""}</em>`;
-      b.onclick = () => go({ kind: "folder", folderId: f.id, tab: "all" });
+      b.className = "nav-it folder" + (on ? " on" : "");
+      b.innerHTML = `<span class="fic" style="color:${f.color}">${icon("folder")}</span><span>${esc(f.name)}</span>${on ? `<em>${n}</em>` : ""}`;
+      b.onclick = () => go({ kind: "folder", folderId: f.id });
       onHold(b, (x, y) => popMenu(x, y, [
         { icon: "rename", label: "Đổi tên", onClick: () => renameFolder(f) },
         { icon: "palette", label: "Đổi màu", sub: FOLDER_COLORS.map(c => ({ dot: c, label: c === f.color ? "Đang dùng" : "Màu này", onClick: async () => { f.color = c; await db.put("folders", f); render(); } })) },
@@ -91,9 +94,6 @@ export async function showLibrary(root) {
     let list = notes;
     if (view.kind === "folder") list = list.filter(n => n.folderId === view.folderId);
     if (view.kind === "fav") list = list.filter(n => n.fav);
-    if (view.tab === "recent") list = list.filter(n => Date.now() - n.updated < 14 * 864e5);
-    if (view.tab === "fav") list = list.filter(n => n.fav);
-    if (view.tab === "unsorted") list = list.filter(n => !n.folderId);
     if (q) { const k = q.toLowerCase(); list = list.filter(n => n.title.toLowerCase().includes(k)); }
     return list;
   }
@@ -101,9 +101,6 @@ export async function showLibrary(root) {
   function renderMain() {
     const folder = folders.find(f => f.id === view.folderId);
     h1.textContent = q ? `Kết quả cho “${q}”` : view.kind === "home" ? "Chào thầy Andrew" : view.kind === "fav" ? "Yêu thích" : folder ? folder.name : "Ghi chú";
-    const tabDefs = view.kind === "home" ? [] : [["all", "Tất cả ghi chú"], ["recent", "Sử dụng gần đây"], ["fav", "Yêu thích"], ["unsorted", "Chưa phân loại"]].filter(t => !(view.kind === "fav" && t[0] === "fav") && !(view.kind === "folder" && t[0] === "unsorted"));
-    tabs.innerHTML = tabDefs.map(([k, l]) => `<button class="tab ${view.tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("");
-    tabs.querySelectorAll("[data-tab]").forEach(b => (b.onclick = () => go({ tab: b.dataset.tab })));
 
     quick.innerHTML = view.kind === "home" && !q ? `
       <button class="qa" data-act="blank"><span class="qa-ic" style="--c:#2563eb">${icon("filePlus")}</span><b>Ghi chú mới</b><small>Giấy trắng, kẻ dòng, ô vuông</small></button>
@@ -168,7 +165,7 @@ export async function showLibrary(root) {
     if (!(await askConfirm("Xoá thư mục?", `Thư mục “${f.name}” bị xoá, các ghi chú bên trong chuyển về Chưa phân loại.`))) return;
     for (const n of notes.filter(x => x.folderId === f.id)) { n.folderId = ""; await db.put("notes", n); }
     await db.del("folders", f.id);
-    if (view.folderId === f.id) view = { kind: "all", tab: "all" };
+    if (view.folderId === f.id) view = { kind: "all" };
     await load(); render();
   }
 
@@ -196,6 +193,7 @@ export async function showLibrary(root) {
     if (a === "pdf") return root.querySelector('[data-file="pdf"]').click();
     if (a === "img") return root.querySelector('[data-file="img"]').click();
     if (a === "aword") return window.open("aword-note.html", "_blank");
+    if (a === "settings") return openSettings(() => render());
     if (a === "addFolder") {
       const r = await askText("Thư mục mới", "", "Tạo");
       if (!r) return;

@@ -834,6 +834,7 @@ export async function openEditor(root, id) {
   refreshVisible();
   updPager();
   updUR();
+  try { if (localStorage.getItem("mynote.autolive") === "1") toggleLive(); } catch (e) { /* */ }   // Cài đặt ▸ Tự bật LIVE
 
   // dọn khi rời màn (main.js gọi)
   return async () => {
