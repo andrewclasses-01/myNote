@@ -204,9 +204,16 @@ nhấc bút; không lỗi console. CHƯA kiểm được trên iPad thật: cả
 - CHƯA kiểm: iPad thật.
 
 ## VIỆC ĐANG CHỜ
+(Chốt phiên 25/10/2026 tối — thầy: "ghi hồ sơ và kết thúc phiên, tôi sẽ tiếp tục check và build sau". Bản live: myNote v0.3.2 `960d43d`,
+AWord Đợt 586 `9583a83`.)
+- [ ] ⭐ Thầy thử v0.3.2 trên iPad thật (đóng hẳn app rồi mở lại, Cài đặt phải ghi 0.3.2): nét bám đầu bút, dải trên hết mờ, tẩy có còn
+  chậm không, laser mới, vuốt 1 ngón / chụm 2 ngón, chạm đúp / 2 ngón / 3 ngón. Chưa xác nhận trên iPad: lỗi "nhấc bút mới hiện nét"
+  (sửa phòng thủ ở v0.3.1, chưa tái hiện được ở máy).
+- [ ] Nếu tẩy (hoặc chốt nét) vẫn chậm trên iPad ⇒ chia mỗi trang thành nhiều DẢI canvas nhỏ (chỉ dải bị đổi phải ghép lại).
 - [ ] Thử nút Xuất / Khôi phục sao lưu bằng file thật.
-- [ ] Thầy thử iPad thật: note.andrewclasses.com ▸ Thêm vào MH chính ▸ đăng nhập ▸ ghi chú ▸ LIVE; máy chiếu AWord ▸ NOTE.
-- [x] ~~Thầy thử mẫu trên iPad thật~~ (thay bằng dòng trên) (bấm `CHAY THU TREN IPAD.bat` trên máy tính, iPad cùng Wi-Fi mở địa chỉ nó in ra) và duyệt/góp ý.
+- [ ] Thử LIVE với iPad thật ⇄ máy chiếu AWord ▸ NOTE (đường thật mới thử bằng 2 tab Chrome cùng tài khoản); đăng nhập Google trong app
+  cài từ Màn hình chính (popup có thể khó — kẹt thì đăng nhập trong Safari trước).
+- [x] ~~Thầy thử mẫu trên iPad thật~~ (bấm `CHAY THU TREN IPAD.bat`, iPad cùng Wi-Fi mở địa chỉ nó in ra) — đã thay bằng bản live.
 - [x] Kho GitHub + Pages + note.andrewclasses.com (25/10).
 - [x] Firebase đăng nhập (25/10).
 - [ ] Đồng bộ ghi chú giữa máy (Firestore + Storage, offline trước) — ⚠️ KHÔNG để trong `users/{uid}/items` (AWord readAll đọc cả kho đó mỗi lần mở thư viện) ⇒ cần đường riêng + luật mới, đọc HO SO BAO MAT trước.

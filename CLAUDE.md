@@ -9,8 +9,10 @@ App web (PWA, cài lên Màn hình chính iPad) thay Notability cho lớp học 
 - iPad luôn NẰM NGANG (khung chuẩn 1180×820).
 
 ## Trạng thái
-**v0.2.0 LIVE** (25/10/2026) — https://note.andrewclasses.com (kho công khai `andrewclasses-01/myNote`, Pages nhánh main, CNAME ở portal.inet.vn). LIVE thật lên nút NOTE của AWord (Đợt 583). chờ thầy duyệt giao diện + thao tác trên iPad thật.
-- Đã có: thư viện, màn viết đủ công cụ, nhập PDF/ảnh, hoàn tác/làm lại, PWA (manifest + sw.js), LIVE qua BroadcastChannel.
+**v0.3.2 LIVE** (25/10/2026, commit `960d43d`) — https://note.andrewclasses.com (kho công khai `andrewclasses-01/myNote`, Pages nhánh main,
+CNAME ở portal.inet.vn). LIVE thật lên nút NOTE của AWord (Đợt 583–586). Đang tinh chỉnh cảm giác viết trên iPad thật cùng thầy (chặng 4–6).
+- Đã có: thư viện, màn viết đủ công cụ, nhập PDF/ảnh, hoàn tác/làm lại, PWA (manifest + sw.js), LIVE WebRTC + Firestore, cử chỉ ngón
+  (cuộn, chụm zoom, chạm đúp đổi công cụ, 2 ngón hoàn tác, 3 ngón làm lại), Cài đặt + sao lưu .json.
 - CHƯA có: ĐỒNG BỘ ghi chú giữa các máy — ghi chú chỉ lưu IndexedDB trong máy (Cài đặt ▸ Sao lưu để chép). Đăng nhập Google chỉ để LIVE.
 
 ## Chạy / thử
@@ -52,6 +54,19 @@ App web (PWA, cài lên Màn hình chính iPad) thay Notability cho lớp học 
 máy chiếu trả `viewer` / `need`. Chi tiết đầu `js/live.js`.
 
 ## Khám phá kỹ thuật quan trọng
+- ⭐ **Đường vẽ nét (v0.3.x)**: nét bút = ĐƯỜNG VIỀN tô một lần (`ink.js` `fillPen` → `fillVar`), làm mượt 2 tầng (lúc thu: streamline
+  bút 0,45, điểm cách ≥ 0,9, lực 15 %/điểm; lúc vẽ: lọc 1-2-1 + trung bình 5 điểm lực). Nét đang viết + mọi nét tạm (tẩy, lasso, kéo) vẽ
+  trên `.live-layer` CỠ KHUNG VIẾT (không bao giờ dùng canvas phủ cỡ trang). Dạ quang = hình ĐẶC trên canvas nháp rồi dán 36 % multiply
+  (Safari tô nét dày trong suốt bị khuyết). ⛔ KHÔNG dùng `getPredictedEvents` (thầy: nét "dây ra rồi thu lại"; iPad từng làm hỏng vẽ dở).
+- ⭐ **iOS**: chặn `touchstart/touchmove` (passive:false) + `contextmenu` + `selectstart` trên vùng viết — `touch-action:none` KHÔNG đủ
+  (menu Sao chép/Dịch thuật, Scribble bắn pointercancel làm đứt nét). ⛔ Đừng lọc lòng bàn tay theo `width/height` — iOS báo NGÓN cũng
+  ≈ 40–60 px. Chống tì tay = bút chạm trong 0,8 s sau khi "ngón" kéo trang ⇒ trả trang về chỗ cũ.
+- ⭐ **Dải trên**: iOS làm mờ nội dung dưới thanh trạng thái tới ≈ 2 × chiều cao thanh (đo ảnh iPad 13": thanh 32 px, mờ tới 65 px) ⇒
+  nội dung chạm được bắt đầu từ `2,1 × env(safe-area-inset-top)`.
+- ⭐ **Tẩy**: hộp bao nhớ theo nét (`WeakMap`), vẽ lại đúng vùng (`renderRegion`). Bàn đo WebKit: Playwright `playwright-core@1.64.1` +
+  `webkit-2370` (đã có trong `%LOCALAPPDATA%\ms-playwright`) — cài `playwright-core` vào thư mục tạm, mở `note-lab` cổng 9041, giả lập
+  `PointerEvent` pointerType "pen". WebKit Windows ghép canvas bằng CPU ⇒ khung ~130 ms khi canvas trang đổi là chi phí MÔI TRƯỜNG.
+- Chạm đúp Apple Pencil: Safari KHÔNG cho web nhận (chỉ app App Store có UIPencilInteraction) — muốn có phải đóng gói app iOS (cần Mac).
 - **Ngón tay vs bút**: `touch-action:none` trên khung cuộn, app TỰ cuộn (1 ngón, có quán tính) + chụm phóng to (2 ngón, neo đúng điểm giữa 2 ngón theo toạ độ trang).
   Bút đang chạm ⇒ bỏ mọi ngón (chống tì tay). Nút bàn tay = cho ngón vẽ; khi đó ngón thứ 2 chạm trong 180 ms ⇒ huỷ nét, thành cử chỉ.
 - **Canvas theo vùng nhìn**: chỉ trang trong ±0,75–1,75 màn có canvas; trang xa gỡ canvas (`width=0` để Safari nhả bộ nhớ ngay). Trần ~9 triệu điểm ảnh/trang.
