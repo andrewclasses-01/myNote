@@ -28,7 +28,7 @@ const SET_KEY = "mynote.tools";
 const MIN_Z = 0.6, MAX_Z = 3;
 
 function loadSet() {
-  const d = { tool: "pen", finger: false, pen: { c: PRESETS.pen[0], wi: 1 }, hl: { c: PRESETS.hl[0], wi: 1 }, eraser: { wi: 1, mode: "stroke" }, text: { c: PRESETS.text[0], wi: 1 }, laser: { c: PRESETS.laser[0] } };
+  const d = { tool: "pen", finger: false, dtap: "eraser", prevTool: "pen", pen: { c: PRESETS.pen[0], wi: 1 }, hl: { c: PRESETS.hl[0], wi: 1 }, eraser: { wi: 1, mode: "stroke" }, text: { c: PRESETS.text[0], wi: 1 }, laser: { c: PRESETS.laser[0] } };
   try { const s = JSON.parse(localStorage.getItem(SET_KEY)); if (s) for (const k in d) if (s[k] != null) d[k] = typeof d[k] === "object" ? { ...d[k], ...s[k] } : s[k]; } catch (e) { /* */ }
   return d;
 }
@@ -236,6 +236,7 @@ export async function openEditor(root, id) {
     tools.innerHTML = TOOLS.map(([k, ic, t]) => `<button class="tool ${set.tool === k ? "on" : ""}" data-tool="${k}" title="${t}">${icon(ic)}${k === "pen" || k === "hl" ? `<i class="tip" style="background:${set[k].c}"></i>` : ""}</button>`).join("");
     tools.querySelectorAll("[data-tool]").forEach(b => (b.onclick = () => {
       if (set.tool === b.dataset.tool && b.dataset.tool === "eraser") return eraserMenu(b);
+      if (set.tool !== b.dataset.tool) set.prevTool = set.tool;
       set.tool = b.dataset.tool; saveSet(); clearSel(); commitText(); paintPalette();
     }));
     const t = set.tool, pre = PRESETS[t];
@@ -269,7 +270,7 @@ export async function openEditor(root, id) {
   // ⭐ v0.3.0 — LỚP NÉT ĐANG VIẾT = một canvas CỠ MÀN HÌNH đè lên khung cuộn. Cũ: canvas phủ cỡ CẢ TRANG (~7 triệu điểm ảnh ở ×2)
   //   ⇒ iPad xoá + ghép lớp khổng lồ mỗi khung = giật. Vẽ theo toạ độ trang qua setTransform; nhấc bút thì in vào canvas trang.
   const liveCv = $(".live-layer");
-  const lv = liveCv.getContext("2d", { desynchronized: true });
+  const lv = liveCv.getContext("2d");   // v0.3.1: bỏ `desynchronized` (Safari chưa hỗ trợ chắc chắn — không đánh cược)
   let lt = null;   // { k, ox, oy, w, h, dpr } của trang đang viết
   function liveBegin(pi, hl) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2), W = liveCv.clientWidth, H = liveCv.clientHeight;
@@ -298,9 +299,12 @@ export async function openEditor(root, id) {
   // ⭐ v0.3.0 — LÀM MƯỢT lúc thu điểm (streamline): điểm lưu = điểm trước + 60 % quãng tới điểm thật ⇒ hết răng cưa do tay run /
   //   cảm biến nhiễu; lực nhấn đổi dần (35 %/điểm) ⇒ độ dày không nhảy cục. Lúc vẽ luôn nối thêm điểm THẬT cuối cùng (+ điểm
   //   đoán trước nếu trình duyệt có) ⇒ mực bám sát đầu bút, không bị "đuổi theo".
-  const SLOW = { pen: 0.4, mouse: 0.3, touch: 0.45 };
+  // v0.3.1 — Pencil gửi điểm DÀY (tới 240 lần/giây) ⇒ làm mượt mạnh hơn + điểm lưu cách nhau ≥ 0,9 đơn vị + lực nhấn đổi chậm (15 %)
+  const SLOW = { pen: 0.55, mouse: 0.3, touch: 0.45 };
+  const GAP = { pen: 0.9, mouse: 0.4, touch: 0.6 };
+  const PRS = { pen: 0.15, mouse: 0.35, touch: 0.35 };
   function addPts(e) {
-    const a = active, s = a.s, fresh = [], sl = SLOW[e.pointerType] ?? 0.4;
+    const a = active, s = a.s, fresh = [], sl = SLOW[e.pointerType] ?? 0.4, gap = GAP[e.pointerType] ?? 0.5, prs = PRS[e.pointerType] ?? 0.3;
     for (const ev of evPts(e)) {
       const { x, y } = toUnit(a.r, ev.clientX, ev.clientY);
       const rp = s.pr ? Math.max(0.08, ev.pressure || 0.5) : 0.5;
@@ -309,19 +313,27 @@ export async function openEditor(root, id) {
       let px = x, py = y, pp = rp;
       if (n) {
         const lx = s.p[n - 3], ly = s.p[n - 2], lp = s.p[n - 1];
-        px = lx + (x - lx) * (1 - sl); py = ly + (y - ly) * (1 - sl); pp = lp + (rp - lp) * 0.35;
-        if (Math.hypot(px - lx, py - ly) < 0.4) continue;
+        px = lx + (x - lx) * (1 - sl); py = ly + (y - ly) * (1 - sl); pp = lp + (rp - lp) * prs;
+        if (Math.hypot(px - lx, py - ly) < gap) continue;
       }
       const xr = Math.round(px * 10) / 10, yr = Math.round(py * 10) / 10, prr = Math.round(pp * 100) / 100;
       s.p.push(xr, yr, prr); fresh.push(xr, yr, prr);
     }
+    // ⭐ v0.3.1 (thầy 25/10: "Safari vẽ cả nét rồi nhấc bút mới hiện") — VẼ TRƯỚC mọi thứ khác. Cũ: gọi getPredictedEvents()
+    //   TRƯỚC drawLive(); trên iPad thật nó ném lỗi/trả toạ độ hỏng thì cả lượt vẽ dở bị bỏ (điểm vẫn thu đủ ⇒ nhấc bút mới hiện).
     a.pred = null;
-    if (e.getPredictedEvents && s.t === "pen") {
-      const pe = e.getPredictedEvents();
-      if (pe && pe.length) { const q = pe[pe.length - 1], u = toUnit(a.r, q.clientX, q.clientY); a.pred = [u.x, u.y, a.raw ? a.raw[2] : 0.5]; }
-    }
-    if (fresh.length) live({ k: "s+", id: s.id, p: fresh });
     drawLive();
+    try {
+      if (e.getPredictedEvents && s.t === "pen" && a.raw) {
+        const pe = e.getPredictedEvents();
+        const q = pe && pe.length ? pe[pe.length - 1] : null;
+        if (q && isFinite(q.clientX) && isFinite(q.clientY)) {
+          const u = toUnit(a.r, q.clientX, q.clientY);
+          if (Math.hypot(u.x - a.raw[0], u.y - a.raw[1]) < 30) a.pred = [u.x, u.y, a.raw[2]];
+        }
+      }
+    } catch (er) { /* trình duyệt không đoán được — bỏ qua */ }
+    try { if (fresh.length) live({ k: "s+", id: s.id, p: fresh }); } catch (er) { /* */ }
   }
 
   let liveRaf = 0;
@@ -605,6 +617,51 @@ export async function openEditor(root, id) {
 
   // ------------------------------------------------------------------ cử chỉ ngón tay: cuộn + chụm phóng to
   const touches = new Map();
+
+  // ⭐ v0.3.1 — CHẠM BẰNG NGÓN (thầy: "bấm đúp vào apple pencil để đổi tính năng như các note khác"). Safari KHÔNG cho trang web
+  //   nhận chạm đúp của Apple Pencil (chỉ app cài từ App Store có UIPencilInteraction) ⇒ thay bằng cử chỉ ngón như Notability:
+  //   chạm đúp 1 ngón = đổi công cụ (Cài đặt ▸ Bút ⇄ Tẩy / Công cụ trước / Tắt) · chạm 2 ngón = hoàn tác · chạm 3 ngón = làm lại.
+  //   Một "lượt chạm" = từ lúc ngón đầu đặt xuống tới lúc ngón cuối nhấc lên; chỉ tính là CHẠM nếu < 300 ms và không ngón nào trượt
+  //   > 12 px. Bỏ qua mọi chạm trong 600 ms quanh lúc bút đang dùng (tì tay lúc viết không được hoàn tác nhầm).
+  let tg = null, lastTap = null, lastPenAt = -1e9;
+  function tapDown(e) {
+    if (!tg) tg = { t0: performance.now(), max: 0, moved: false, start: new Map() };
+    tg.start.set(e.pointerId, [e.clientX, e.clientY]);
+    tg.max = Math.max(tg.max, tg.start.size);
+  }
+  function tapMove(e) {
+    const st = tg && tg.start.get(e.pointerId);
+    if (st && Math.hypot(e.clientX - st[0], e.clientY - st[1]) > 12) tg.moved = true;
+  }
+  function tapUp(e) {
+    if (!tg || touches.size) return;
+    const t = tg; tg = null;
+    const now = performance.now();
+    if (t.moved || now - t.t0 > 300 || now - lastPenAt < 600 || penDown) { lastTap = null; return; }
+    if (t.max === 2) { lastTap = null; doUndo(); flash("Hoàn tác"); return; }
+    if (t.max === 3) { lastTap = null; doRedo(); flash("Làm lại"); return; }
+    if (t.max !== 1) return;
+    const p = [e.clientX, e.clientY];
+    if (lastTap && now - lastTap.t < 350 && Math.hypot(p[0] - lastTap.p[0], p[1] - lastTap.p[1]) < 50) { lastTap = null; doubleTap(); }
+    else lastTap = { t: now, p };
+  }
+  const TOOL_NAME = Object.fromEntries(TOOLS.map(([k, , n]) => [k, n]));
+  function doubleTap() {
+    if (set.dtap === "off" || set.tool === "text") return;
+    const cur = set.tool;
+    let next;
+    if (set.dtap === "eraser") next = cur === "eraser" ? (set.prevTool && set.prevTool !== "eraser" ? set.prevTool : "pen") : "eraser";
+    else next = set.prevTool && set.prevTool !== cur ? set.prevTool : cur === "pen" ? "eraser" : "pen";
+    set.prevTool = cur; set.tool = next; saveSet(); clearSel(); commitText(); paintPalette();
+    flash(TOOL_NAME[next]);
+  }
+  let flashT = 0;
+  function flash(txt) {
+    zoomBadge.textContent = txt;
+    zoomBadge.classList.add("in");
+    clearTimeout(flashT); clearTimeout(zoomBadge._t);
+    flashT = setTimeout(() => zoomBadge.classList.remove("in"), 700);
+  }
   let g = null, inertia = 0;
   function stopInertia() { cancelAnimationFrame(inertia); inertia = 0; }
   function anchorAt(cx, cy) {
@@ -692,7 +749,7 @@ export async function openEditor(root, id) {
     if (e.target.closest(".sel-menu, .text-edit, .add-page")) return;
     lastInput = performance.now();
     if (e.pointerType === "pen") {
-      penSeen = true;
+      penSeen = true; lastPenAt = performance.now(); tg = null; lastTap = null;
       // bút chạm ⇒ huỷ cử chỉ ngón/lòng bàn tay đang dở (tì tay trước khi đặt bút)
       if (touches.size) { touches.clear(); g = null; stopInertia(); }
       if (document.activeElement && document.activeElement.matches("input, textarea") && !document.activeElement.classList.contains("text-edit")) document.activeElement.blur();
@@ -707,6 +764,7 @@ export async function openEditor(root, id) {
         liveClear(); lt = null; touches.set(active.pid, active.firstPt); active = null;
       }
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      tapDown(e);
       try { wrap.setPointerCapture(e.pointerId); } catch (er) { /* */ }
       gStart();
       return;
@@ -737,7 +795,7 @@ export async function openEditor(root, id) {
   });
 
   wrap.addEventListener("pointermove", e => {
-    if (touches.has(e.pointerId)) { touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); gMove(); return; }
+    if (touches.has(e.pointerId)) { touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); tapMove(e); gMove(); return; }
     const a = active;
     if (!a || a.pid !== e.pointerId) return;
     e.preventDefault();
@@ -752,8 +810,14 @@ export async function openEditor(root, id) {
   });
 
   const up = e => {
-    if (e.pointerType === "pen") penDown = false;
-    if (touches.has(e.pointerId)) { touches.delete(e.pointerId); gEnd(e.type === "pointerup" ? fingerTap : null); return; }
+    if (e.pointerType === "pen") { penDown = false; lastPenAt = performance.now(); }
+    if (touches.has(e.pointerId)) {
+      touches.delete(e.pointerId);
+      const wasTap = e.type === "pointerup" && tg && !tg.moved && tg.max > 1;   // chạm 2/3 ngón: không để gEnd hiểu nhầm là chạm 1 ngón
+      gEnd(e.type === "pointerup" && !wasTap ? fingerTap : null);
+      if (e.type === "pointerup") tapUp(e); else if (!touches.size) tg = null;
+      return;
+    }
     const a = active;
     if (!a || a.pid !== e.pointerId) return;
     active = null;

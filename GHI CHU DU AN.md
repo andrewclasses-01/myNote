@@ -137,6 +137,36 @@ Thầy cho phép (hỏi bằng nút): tạo kho GitHub công khai · CNAME ở i
 Vòng xoắn có lực nhấn đổi liên tục, chữ V gắt, vòng tự cắt — mép mịn, đầu tròn; dạ quang, lasso, gõ chữ vẫn đúng; lớp nét sạch sau khi
 nhấc bút; không lỗi console. CHƯA kiểm được trên iPad thật: cảm giác mượt, menu iOS, chống tì tay, dải trên — chờ thầy thử.
 
+## Chặng 5 — 25/10/2026 — v0.3.1 Apple Pencil trên Safari + cử chỉ ngón (máy 1)
+
+### Thầy thử v0.3.0 trên iPad, báo
+1. "Trên Safari, vẽ cả một nét rồi nhấc bút Apple Pencil ra mới hiện nét (chưa nhấc thì vẫn trắng)."
+2. "Nét vẽ không mượt, trông như bị run tay." 3. "Nét bút dạ quang bị đứt đoạn lung tung" (ảnh: vệt trắng lưỡi liềm dọc nét).
+   Chrome máy tính + chuột thì rất ổn ⇒ nghi Apple Pencil. 4. Muốn "bấm đúp Apple Pencil để đổi tính năng như các note khác".
+
+### Gốc + cách sửa
+1. Code gọi `getPredictedEvents()` (CHỈ cho bút, chuột không đi nhánh này) TRƯỚC `drawLive()`. Trên iPad thật hàm này ném lỗi / trả toạ độ
+   hỏng ⇒ lượt vẽ dở bị bỏ qua mỗi lần, còn điểm vẫn thu đủ ⇒ nhấc bút mới vẽ bản chốt. Sửa: VẼ TRƯỚC; đoán điểm sau trong `try`, chỉ
+   nhận điểm hữu hạn và cách đầu bút < 30 đơn vị; gửi LIVE cũng trong `try`. Bỏ `desynchronized` (không đánh cược trên Safari).
+   ⚠️ Chưa tái hiện được lỗi gốc ở máy (sự kiện giả không có điểm đoán) — sửa theo hướng phòng thủ, chờ thầy xác nhận trên iPad.
+2. Pencil gửi điểm DÀY (tới 240 lần/giây), lực nhấn dao động liên tục ⇒ làm mượt mạnh hơn riêng cho bút: streamline 55 %, điểm lưu cách
+   ≥ 0,9 đơn vị, lực nhấn đổi 15 %/điểm; lúc VẼ lọc thêm 1-2-1 vị trí + trung bình 5 điểm lực nhấn; dải độ dày theo lực hẹp lại
+   (55–125 %, cũ 45–130 %). Áp cho cả nét cũ (chỉ đổi cách vẽ, dữ liệu giữ nguyên).
+3. Safari tô nét DÀY + TRONG SUỐT qua nhiều đoạn cong ngắn bị khuyết ⇒ dạ quang vẽ hình nét ĐẶC 100 % (fillPen, đều nét) lên canvas nháp
+   theo đúng độ phân giải ctx, rồi dán MỘT lần với 36 % multiply.
+4. Safari KHÔNG cho trang web nhận chạm đúp Apple Pencil (chỉ app App Store có UIPencilInteraction) ⇒ thay bằng cử chỉ ngón như Notability:
+   chạm đúp 1 ngón = đổi công cụ (Cài đặt ▸ "Chạm đúp bằng ngón tay": Bút ⇄ Tẩy (mặc định) / Công cụ trước / Tắt), chạm 2 ngón = hoàn
+   tác, 3 ngón = làm lại; hiện chữ nhỏ giữa màn ("Tẩy", "Hoàn tác"…). Chỉ tính là chạm nếu < 300 ms, không ngón nào trượt > 12 px, và
+   KHÔNG trong 600 ms quanh lúc bút đang dùng (tì tay lúc viết không hoàn tác nhầm). Đổi công cụ bằng tay cũng nhớ `prevTool`.
+- AWord **Đợt 585**: chép `core/note-ink.js`.
+
+### Đã kiểm
+- **WebKit** (Playwright 1.64.1 + webkit-2370 đã có trên máy, cài `playwright-core` vào thư mục tạm — bàn thử `scratchpad/pw/thu-hl.js`
+  của phiên này, không nằm trong kho): nét bút hiện NGAY lúc chưa nhấc (24.481 điểm ảnh trên lớp nét), cố tình thêm rung ±0,6 px + lực
+  ngẫu nhiên vẫn mượt; dạ quang zíc zắc liền mạch, không vệt trắng.
+- Chrome: chạm đúp đổi Bút ⇄ Tẩy ⇄ Bút; 2 ngón hoàn tác, 3 ngón làm lại; chạm 2 ngón ngay sau khi viết bị bỏ qua.
+- CHƯA kiểm: iPad thật.
+
 ## VIỆC ĐANG CHỜ
 - [ ] Thử nút Xuất / Khôi phục sao lưu bằng file thật.
 - [ ] Thầy thử iPad thật: note.andrewclasses.com ▸ Thêm vào MH chính ▸ đăng nhập ▸ ghi chú ▸ LIVE; máy chiếu AWord ▸ NOTE.

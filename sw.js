@@ -1,6 +1,6 @@
 // sw.js — chạy KHÔNG CẦN MẠNG sau lần mở đầu (app cài từ Màn hình chính).
 // Mỗi lần đổi code: tăng VER để iPad bỏ bộ đệm cũ.
-const VER = "mynote-v0.3.0";
+const VER = "mynote-v0.3.1";
 const SHELL = [
   "./", "index.html", "css/app.css", "manifest.webmanifest",
   "js/main.js", "js/library.js", "js/editor.js", "js/ink.js", "js/db.js", "js/pages.js", "js/ui.js", "js/icons.js", "js/live.js", "js/settings.js", "js/note-link.js", "js/firebase.js",

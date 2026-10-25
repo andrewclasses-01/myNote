@@ -7,8 +7,12 @@ export const A4_H = 1414;
 
 const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif';
 
-// Độ dày theo lực nhấn: bút có lực ⇒ 45 %–130 % độ dày gốc; chuột/ngón ⇒ đều nét
-const pw = (s, pr) => (s.pr ? 0.45 + 0.85 * pr : 1);
+// Độ dày theo lực nhấn: bút có lực ⇒ 55 %–125 % độ dày gốc (v0.3.1: hẹp lại — Pencil dao động lực liên tục ⇒ mép "run");
+// chuột/ngón ⇒ đều nét; dạ quang LUÔN đều nét (như bút dạ thật)
+const pw = (s, pr) => (s.pr && s.t !== "hl" ? 0.55 + 0.7 * pr : 1);
+
+// Canvas nháp dùng chung để vẽ dạ quang (xem drawStroke)
+let scratch = null;
 
 export function drawPaper(ctx, page, k, img) {
   const W = PAGE_W * k, H = page.h * k;
@@ -47,16 +51,26 @@ export function drawStroke(ctx, s, k, dx = 0, dy = 0) {
   ctx.strokeStyle = s.c; ctx.fillStyle = s.c;
   const X = i => (p[i * 3] + dx) * k, Y = i => (p[i * 3 + 1] + dy) * k;
   if (s.t === "hl") {
+    // ⭐ v0.3.1 (thầy 25/10: "nét bút dạ quang bị đứt đoạn lung tung") — Safari tô nét DÀY + TRONG SUỐT qua nhiều đoạn cong ngắn bị
+    //   khuyết hình lưỡi liềm. Nay: vẽ hình nét ĐẶC 100 % lên canvas nháp (chỗ chồng nhau không đậm thêm, không hở), rồi dán MỘT lần
+    //   vào trang với độ trong 36 % + multiply. Canvas nháp theo đúng độ phân giải thật của ctx (đọc từ ma trận hiện tại).
+    const T = ctx.getTransform ? ctx.getTransform() : { a: 1, b: 0 };
+    const sc = Math.hypot(T.a, T.b) || 1;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (let i = 0; i < n; i++) { const x = X(i), y = Y(i); if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    const m = (s.w * k) / 2 + 2;
+    x0 -= m; y0 -= m; x1 += m; y1 += m;
+    const W = Math.max(1, Math.ceil((x1 - x0) * sc)), H = Math.max(1, Math.ceil((y1 - y0) * sc));
+    if (!scratch) scratch = document.createElement("canvas");
+    if (scratch.width < W || scratch.height < H) { scratch.width = Math.max(scratch.width, W); scratch.height = Math.max(scratch.height, H); }
+    const g = scratch.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, H);
+    g.setTransform(sc, 0, 0, sc, -x0 * sc, -y0 * sc);
+    fillPen(g, s, k, dx, dy);
     ctx.globalAlpha = 0.36;
     ctx.globalCompositeOperation = "multiply";
-    ctx.lineWidth = s.w * k;
-    ctx.lineCap = "butt";
-    ctx.beginPath();
-    ctx.moveTo(X(0), Y(0));
-    if (n === 1) ctx.lineTo(X(0) + 0.1, Y(0));
-    for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(X(i), Y(i), (X(i) + X(i + 1)) / 2, (Y(i) + Y(i + 1)) / 2);
-    if (n > 1) ctx.lineTo(X(n - 1), Y(n - 1));
-    ctx.stroke();
+    ctx.drawImage(scratch, 0, 0, W, H, x0, y0, W / sc, H / sc);
     ctx.restore();
     return;
   }
@@ -77,8 +91,18 @@ export function drawStroke(ctx, s, k, dx = 0, dy = 0) {
 export function fillPen(ctx, s, k, dx = 0, dy = 0) {
   const p = s.p, n = p.length / 3;
   if (!n) return;
-  const X = i => (p[i * 3] + dx) * k, Y = i => (p[i * 3 + 1] + dy) * k;
-  const R = i => Math.max(0.35, (s.w * k * pw(s, p[i * 3 + 2])) / 2);
+  // v0.3.1 — làm mượt lúc VẼ: mỗi điểm = (trước + 2×nó + sau) / 4 (giữ nguyên 2 đầu); lực nhấn trung bình 5 điểm ⇒ hết mép "run"
+  const xs = new Float64Array(n), ys = new Float64Array(n), ps = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = i ? i - 1 : 0, b = i < n - 1 ? i + 1 : n - 1;
+    xs[i] = i === 0 || i === n - 1 ? p[i * 3] : (p[a * 3] + 2 * p[i * 3] + p[b * 3]) / 4;
+    ys[i] = i === 0 || i === n - 1 ? p[i * 3 + 1] : (p[a * 3 + 1] + 2 * p[i * 3 + 1] + p[b * 3 + 1]) / 4;
+    let sum = 0, c = 0;
+    for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { sum += p[j * 3 + 2]; c++; }
+    ps[i] = sum / c;
+  }
+  const X = i => (xs[i] + dx) * k, Y = i => (ys[i] + dy) * k;
+  const R = i => Math.max(0.35, (s.w * k * pw(s, ps[i])) / 2);
   ctx.fillStyle = s.c;
   if (n === 1) { ctx.beginPath(); ctx.arc(X(0), Y(0), R(0), 0, 6.2832); ctx.fill(); return; }
   const L = new Array(n * 2), Q = new Array(n * 2), sharp = [];

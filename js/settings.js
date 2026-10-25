@@ -5,7 +5,7 @@ import { icon } from "./icons.js";
 import { toast, askConfirm, esc } from "./ui.js";
 import { getUser, signIn, signOut } from "./firebase.js";
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.3.1";
 const TOOLS_KEY = "mynote.tools";
 
 const getJ = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } };
@@ -30,7 +30,7 @@ export function openSettings(onChange) {
 
   function paint() {
     const t = getJ(TOOLS_KEY);
-    const finger = !!t.finger, emode = (t.eraser && t.eraser.mode) || "stroke";
+    const finger = !!t.finger, emode = (t.eraser && t.eraser.mode) || "stroke", dtap = t.dtap || "eraser";
     body.innerHTML = `
       <div class="set-g">Viết</div>
       <div class="set-row" data-k="paper"><div><b>Giấy mặc định</b><small>Cho ghi chú mới và trang mới</small></div>
@@ -39,6 +39,9 @@ export function openSettings(onChange) {
         <button class="sw-t ${finger ? "on" : ""}" data-t="finger"></button></div>
       <div class="set-row" data-k="eraser"><div><b>Kiểu tẩy</b><small>Chữ gõ không bị tẩy</small></div>
         ${seg([["stroke", "Cả nét"], ["part", "Từng phần"]], emode)}</div>
+
+      <div class="set-row" data-k="dtap"><div><b>Chạm đúp bằng ngón tay</b><small>Đổi công cụ nhanh. Chạm 2 ngón = hoàn tác · 3 ngón = làm lại.<br>Chạm đúp Apple Pencil: Safari chưa cho web dùng (chỉ app App Store).</small></div>
+        ${seg([["eraser", "Bút ⇄ Tẩy"], ["prev", "Công cụ trước"], ["off", "Tắt"]], dtap)}</div>
 
       <div class="set-g">LIVE lên AWord</div>
       <div class="set-row"><div><b>Tự bật LIVE khi mở ghi chú</b><small>Mở ghi chú là phát ngay lên nút NOTE của AWord</small></div>
@@ -61,6 +64,7 @@ export function openSettings(onChange) {
       const k = b.closest(".set-row").dataset.k, v = b.dataset.v;
       if (k === "paper") setS("mynote.paper", v);
       if (k === "eraser") { const t2 = getJ(TOOLS_KEY); t2.eraser = { ...(t2.eraser || {}), mode: v }; setJ(TOOLS_KEY, t2); }
+      if (k === "dtap") { const t2 = getJ(TOOLS_KEY); t2.dtap = v; setJ(TOOLS_KEY, t2); }
       paint();
     }));
     body.querySelectorAll("[data-t]").forEach(b => (b.onclick = () => {
