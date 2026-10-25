@@ -4,6 +4,7 @@ import { icon } from "./icons.js";
 import { newPage, makeThumb, importPdf, importImages, fmtDate } from "./pages.js";
 import { popMenu, askText, askConfirm, toast, onHold, esc } from "./ui.js";
 import { openSettings } from "./settings.js";
+import { watchUser, signIn } from "./firebase.js";
 
 const FOLDER_COLORS = ["#7c3aed", "#e11d48", "#0ea5e9", "#16a34a", "#f59e0b", "#64748b", "#db2777", "#0d9488"];
 const VIEW_KEY = "mynote.view";
@@ -35,13 +36,13 @@ export async function showLibrary(root) {
       <nav class="side-nav"></nav>
       <div class="side-h"><span>Thư mục</span><button class="icon-btn" data-act="addFolder" title="Thư mục mới">${icon("plus")}</button></div>
       <div class="folders"></div>
-      <div class="side-foot"><span class="sync-dot"></span><span>Bản mẫu · lưu trong máy này</span><button class="icon-btn" data-act="settings" title="Cài đặt">${icon("settings")}</button></div>
+      <div class="side-foot"><button class="acct" data-act="account"><span class="sync-dot"></span><span class="acct-t">Đang kiểm tài khoản…</span></button><button class="icon-btn" data-act="settings" title="Cài đặt">${icon("settings")}</button></div>
     </aside>
     <main class="main">
       <header class="main-h">
         <h1></h1>
         <div class="main-acts">
-          <button class="icon-btn round big" data-act="aword" title="Màn NOTE AWord (bản mẫu màn máy chiếu)" aria-label="Màn NOTE AWord">${icon("cast")}</button>
+          <button class="icon-btn round big" data-act="aword" title="Mở màn NOTE trên AWord (máy chiếu)" aria-label="Màn NOTE AWord">${icon("cast")}</button>
           <button class="btn primary" data-act="new">${icon("plus")}<span>Mới</span></button>
         </div>
       </header>
@@ -106,7 +107,7 @@ export async function showLibrary(root) {
       <button class="qa" data-act="blank"><span class="qa-ic" style="--c:#2563eb">${icon("filePlus")}</span><b>Ghi chú mới</b><small>Giấy trắng, kẻ dòng, ô vuông</small></button>
       <button class="qa" data-act="pdf"><span class="qa-ic" style="--c:#e11d48">${icon("file")}</span><b>Nhập PDF</b><small>Đáp án, bài tập để chữa</small></button>
       <button class="qa" data-act="img"><span class="qa-ic" style="--c:#16a34a">${icon("image")}</span><b>Nhập ảnh</b><small>Ảnh chụp bài làm của em</small></button>
-      <button class="qa" data-act="aword"><span class="qa-ic" style="--c:#f59e0b">${icon("cast")}</span><b>LIVE lên AWord</b><small>Viết trên iPad, hiện lên máy chiếu</small></button>
+      <button class="qa" data-act="aword"><span class="qa-ic" style="--c:#f59e0b">${icon("cast")}</span><b>LIVE lên AWord</b><small>Mở ghi chú ▸ LIVE, máy chiếu bấm NOTE</small></button>
       <h2 class="sec-h">Gần đây</h2>` : "";
     quick.querySelectorAll("[data-act]").forEach(b => (b.onclick = () => act(b.dataset.act)));
 
@@ -192,8 +193,13 @@ export async function showLibrary(root) {
     }
     if (a === "pdf") return root.querySelector('[data-file="pdf"]').click();
     if (a === "img") return root.querySelector('[data-file="img"]').click();
-    if (a === "aword") return window.open("aword-note.html", "_blank");
+    // mở AWord thật, tự bật màn NOTE (?note=1); bàn thử ?padsig=local ⇒ AWord chạy máy (devserver cổng 8826)
+    if (a === "aword") return window.open(new URLSearchParams(location.search).get("padsig") === "local" ? "http://localhost:8826/?note=1&padsig=local" : "https://aword.andrewclasses.com/?note=1", "_blank");
     if (a === "settings") return openSettings(() => render());
+    if (a === "account") {
+      if (me) return openSettings(() => render());
+      try { await signIn(); toast("Đã đăng nhập — LIVE sẵn sàng"); } catch (e) { if (!/popup-closed|cancelled-popup/.test(e.code || "")) toast(e.message || "Đăng nhập không được"); }
+    }
     if (a === "addFolder") {
       const r = await askText("Thư mục mới", "", "Tạo");
       if (!r) return;
@@ -203,6 +209,17 @@ export async function showLibrary(root) {
   }
 
   root.querySelectorAll("[data-act]").forEach(b => (b.onclick = e => act(b.dataset.act, e)));
+  // tài khoản AWord (Google) — cần cho LIVE lên nút NOTE
+  let me = null;
+  const offUser = watchUser(u => {
+    me = u;
+    const a = $(".acct");
+    if (!a || !a.isConnected) return offUser();
+    a.classList.toggle("in", !!u);
+    a.querySelector(".sync-dot").outerHTML = u && u.photoURL ? `<img class="sync-dot" src="${esc(u.photoURL)}" referrerpolicy="no-referrer" alt="">` : `<span class="sync-dot"></span>`;
+    a.querySelector(".acct-t").textContent = u ? "Đã nối tài khoản AWord" : "Đăng nhập Google để LIVE";
+    a.title = u ? u.email : "Đăng nhập cùng tài khoản Google với AWord";
+  });
   $('[data-file="pdf"]').onchange = async e => {
     const f = e.target.files[0]; e.target.value = "";
     if (!f) return;

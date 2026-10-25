@@ -9,7 +9,8 @@ import { db, uid } from "./db.js";
 import { icon } from "./icons.js";
 import { PAGE_W, drawStroke, penSegments, renderPage, strokeBox } from "./ink.js";
 import { getImg, makeThumb, newPage, blobDataUrl } from "./pages.js";
-import { createLiveSender } from "./live.js";
+import { createLiveSender, LIVE_TEXT, LIVE_LOCAL } from "./live.js";
+import { getUser, currentUser, signIn } from "./firebase.js";
 import { popMenu, toast, askConfirm, esc } from "./ui.js";
 
 const TOOLS = [
@@ -741,11 +742,10 @@ export async function openEditor(root, id) {
   }
 
   // ------------------------------------------------------------------ LIVE
-  const liveState = { viewer: false };
   const sentImg = new Set();
   const sender = createLiveSender({
-    onViewer: v => { liveState.viewer = v; paintLive(); if (v) liveAll(); },
-    onNeed: () => { sentImg.clear(); liveAll(); },
+    onState: () => paintLive(),
+    onNeed: () => { sentImg.clear(); liveAll(); },   // máy chiếu vừa nối ⇒ gửi lại trang + ảnh nền
   });
   function live(m) { if (sender.on) sender.send(m); }
   async function livePage(pi) {
@@ -773,21 +773,26 @@ export async function openEditor(root, id) {
     }, 120);
   }
   function paintLive() {
+    const st = sender.state;
     liveBtn.classList.toggle("on", sender.on);
-    liveBtn.classList.toggle("ok", sender.on && liveState.viewer);
-    liveBtn.querySelector("span").textContent = !sender.on ? "LIVE" : liveState.viewer ? "LIVE · AWord đang xem" : "LIVE · chờ màn NOTE";
+    liveBtn.classList.toggle("ok", st === "on" || st === "relay");
+    liveBtn.querySelector("span").textContent = LIVE_TEXT[st] || "LIVE";
   }
-  function toggleLive() {
-    if (sender.on) { sender.stop(); toast("Đã tắt LIVE"); }
-    else { sentImg.clear(); sender.start(); liveAll(); toast("LIVE: mở nút NOTE trên AWord để chiếu"); }
-    paintLive();
+  async function toggleLive(auto) {
+    if (sender.on) { sender.stop(); toast("Đã tắt LIVE"); return; }
+    if (auto && !LIVE_LOCAL && !(await currentUser())) return;   // tự bật lúc mở ghi chú: chưa đăng nhập thì thôi, không bật popup
+    if (!LIVE_LOCAL && !getUser()) {
+      try { await signIn(); } catch (e) { if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") toast(e.message || "Đăng nhập không được"); return; }
+    }
+    sentImg.clear(); sender.start(); liveAll();
+    if (!auto) toast("LIVE: bấm nút NOTE trên AWord để chiếu");
   }
 
   // ------------------------------------------------------------------ nút
   $('[data-act="back"]').onclick = () => { location.hash = ""; };
   $('[data-act="undo"]').onclick = doUndo;
   $('[data-act="redo"]').onclick = doRedo;
-  liveBtn.onclick = toggleLive;
+  liveBtn.onclick = () => toggleLive(false);
   $('[data-act="pgUp"]').onclick = () => goPage(currentPage() - 1);
   $('[data-act="pgDown"]').onclick = () => goPage(currentPage() + 1);
   $('[data-act="more"]').onclick = e => {
@@ -828,13 +833,15 @@ export async function openEditor(root, id) {
   window.addEventListener("resize", onResize);
   const onHide = () => { if (document.visibilityState === "hidden" && saveT) save(); };
   document.addEventListener("visibilitychange", onHide);
+  const onLeave = () => sender.stop();   // đóng/tải lại trang khi đang LIVE ⇒ báo máy chiếu thôi chờ (khỏi kẹt "Connecting…")
+  window.addEventListener("pagehide", onLeave);
 
   paintPalette();
   buildPages();
   refreshVisible();
   updPager();
   updUR();
-  try { if (localStorage.getItem("mynote.autolive") === "1") toggleLive(); } catch (e) { /* */ }   // Cài đặt ▸ Tự bật LIVE
+  try { if (localStorage.getItem("mynote.autolive") === "1") toggleLive(true); } catch (e) { /* */ }   // Cài đặt ▸ Tự bật LIVE
 
   // dọn khi rời màn (main.js gọi)
   return async () => {
@@ -842,6 +849,7 @@ export async function openEditor(root, id) {
     document.removeEventListener("keydown", onKey);
     window.removeEventListener("resize", onResize);
     document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("pagehide", onLeave);
     sender.stop();
     if (saveT || $(".ed-title").value !== meta.title) await save();
     else if (saving) await saving;

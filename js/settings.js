@@ -2,9 +2,10 @@
 // Ghi thẳng vào đúng khoá máy mà màn viết đọc: mynote.paper · mynote.tools (finger, eraser.mode) · mynote.autolive.
 import { db } from "./db.js";
 import { icon } from "./icons.js";
-import { toast, askConfirm } from "./ui.js";
+import { toast, askConfirm, esc } from "./ui.js";
+import { getUser, signIn, signOut } from "./firebase.js";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.2.0";
 const TOOLS_KEY = "mynote.tools";
 
 const getJ = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } };
@@ -44,7 +45,9 @@ export function openSettings(onChange) {
         <button class="sw-t ${getS("mynote.autolive", "0") === "1" ? "on" : ""}" data-t="autolive"></button></div>
 
       <div class="set-g">Tài khoản & đồng bộ</div>
-      <div class="set-row"><div><b>Tài khoản Google (như AWord)</b><small>Bản mẫu chưa đồng bộ — ghi chú chỉ nằm trong máy này</small></div>
+      <div class="set-row"><div><b>Tài khoản Google (như AWord)</b><small>${getUser() ? esc(getUser().email) + " · LIVE dùng được" : "Đăng nhập để LIVE lên nút NOTE của AWord"}</small></div>
+        <button class="btn ${getUser() ? "ghost" : "primary"}" data-b="acct">${getUser() ? "Đăng xuất" : "Đăng nhập"}</button></div>
+      <div class="set-row"><div><b>Đồng bộ ghi chú giữa các máy</b><small>Chưa có — ghi chú hiện chỉ nằm trong máy này (dùng Sao lưu để chép)</small></div>
         <button class="btn ghost" disabled style="opacity:.5">Sắp có</button></div>
 
       <div class="set-g">Dữ liệu</div>
@@ -52,7 +55,7 @@ export function openSettings(onChange) {
         <div style="display:flex;gap:6px"><button class="btn ghost" data-b="export">${icon("download")}Xuất</button><button class="btn ghost" data-b="import">Khôi phục</button></div></div>
       <input type="file" accept=".json,application/json" class="hidden" data-f>
       <div class="set-g">Giới thiệu</div>
-      <div class="set-row"><div><b>myNote ${VERSION}</b><small>ANDREW CLASSES · bản mẫu</small></div></div>`;
+      <div class="set-row"><div><b>myNote ${VERSION}</b><small>ANDREW CLASSES · note.andrewclasses.com</small></div></div>`;
 
     body.querySelectorAll(".set-row[data-k] .seg2 button").forEach(b => (b.onclick = () => {
       const k = b.closest(".set-row").dataset.k, v = b.dataset.v;
@@ -65,6 +68,10 @@ export function openSettings(onChange) {
       if (b.dataset.t === "autolive") setS("mynote.autolive", getS("mynote.autolive", "0") === "1" ? "0" : "1");
       paint();
     }));
+    body.querySelector('[data-b="acct"]').onclick = async () => {
+      try { if (getUser()) await signOut(); else await signIn(); } catch (e) { if (!/popup-closed|cancelled-popup/.test(e.code || "")) toast(e.message || "Không được"); }
+      setTimeout(paint, 300);
+    };
     body.querySelector('[data-b="export"]').onclick = exportAll;
     const fi = body.querySelector("[data-f]");
     body.querySelector('[data-b="import"]').onclick = () => fi.click();
