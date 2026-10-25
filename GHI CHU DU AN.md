@@ -167,6 +167,42 @@ nhấc bút; không lỗi console. CHƯA kiểm được trên iPad thật: cả
 - Chrome: chạm đúp đổi Bút ⇄ Tẩy ⇄ Bút; 2 ngón hoàn tác, 3 ngón làm lại; chạm 2 ngón ngay sau khi viết bị bỏ qua.
 - CHƯA kiểm: iPad thật.
 
+## Chặng 6 — 25/10/2026 — v0.3.2 nét bám đầu bút, dải trên theo số đo, tẩy hết lag, laser mới, cuộn/zoom ngón (máy 1)
+
+### Thầy thử v0.3.1 trên iPad, báo
+1. "Hiệu ứng vẽ trước làm nét bút cứ dây ra rồi thu lại … muốn vẽ đến đâu nét đến đó, nhấc bút ở đâu nét đúng đến đó."
+2. "Phần viền trên vẫn bị mờ … hãy đo đạc chính bức ảnh chụp màn hình để điều chỉnh cho chuẩn."
+3. "Tính năng tẩy (tất cả các kiểu) cực kỳ lag và delay, cần điều tra kỹ."
+4. "Bút laser nét xấu — muốn tương tự nét bút viết thông thường, chỉ khác là có ánh sáng mềm tỏa ra như laser."
+5. "Chưa dùng 2 ngón để zoom in/out được, chưa vuốt 1 ngón để di chuyển trong trang được."
+
+### Gốc + cách sửa
+1. BỎ HẲN điểm đoán trước (`getPredictedEvents`) — đuôi nét chỉ nối tới điểm THẬT cuối của bút; streamline bút 0,55 ⇒ 0,45.
+2. **Đo ảnh chụp** (1479×1109, iPad 13", ≈ 1,08 px ảnh / px CSS): thanh trạng thái ≈ 32 px CSS; iOS làm mờ nội dung nằm dưới thanh và
+   MỜ DẦN tới ≈ 65 px (≈ 2 × chiều cao thanh) — nửa trên nút Quay lại / ô tiêu đề (bắt đầu ở ≈ 46 px) bị mờ. Sửa: `--sat` =
+   `env(safe-area-inset-top)`; dải công cụ cao `2,1 × sat + 66 px`, nội dung bắt đầu từ `2,1 × sat` (≈ 67 px); thư viện cũng vậy.
+   Không có thanh trạng thái (sat = 0) thì không tốn chỗ.
+3. **Tẩy** — đo bằng WebKit, trang 300 nét: bản cũ **143 ms mỗi lần di tẩy** (≈ 7 khung/giây). 3 gốc: (a) mỗi điểm tẩy tính lại hộp bao
+   của MỌI nét bằng cách duyệt hết điểm; (b) vẽ lại CẢ TRANG mỗi khung; (c) vòng tẩy trên canvas phủ CỠ CẢ TRANG xoá trắng mỗi lần di.
+   Sửa: hộp bao nhớ theo nét (`WeakMap`, nét không sửa tại chỗ); lọc nhanh "không nét nào chạm" ⇒ khỏi dựng mảng; vẽ lại ĐÚNG VÙNG bị đổi
+   (`renderRegion` — clip, giấy + chỉ nét giao vùng; ảnh nền lấy đồng bộ `peekImg`); vòng tẩy trên `.live-layer`, chỉ xoá quanh vòng cũ.
+   Sau sửa: phần mã ≤ 1 ms/lần di. ⚠️ WebKit headless trên Windows vẫn có khung ~130 ms khi canvas trang đổi — đã xác minh là chi phí ghép
+   canvas trang lớn bằng CPU của môi trường thử (còn nguyên khi bỏ lệnh đo); iPad vẽ canvas bằng phần cứng. Nếu iPad vẫn chậm ⇒ chia trang
+   thành nhiều DẢI canvas nhỏ (chỉ dải bị đổi phải ghép lại).
+   Đồng thời BỎ HẲN canvas phủ cỡ trang: lasso + kéo vùng chọn cũng vẽ trên `.live-layer` (theo toạ độ trang qua `unitT()`).
+4. **Laser**: `ink.js` tách `fillVar` (tô viền nét bán kính thay đổi — bút dùng chung) + `drawLaser`: nét mượt như bút (làm mượt 1-2-1, thu
+   điểm streamline 0,4), đuôi nhỏ dần theo tuổi (`LASER_LIFE` 1,1 s), 2 lớp bóng mờ cùng màu (shadowBlur 2,2× và 0,8× độ toả). Mỗi lần đặt
+   bút là một nét (`g`); tin LIVE kèm `g` + màu `c` ⇒ AWord Đợt 586 vẽ y hệt.
+5. **Ngón tay**: v0.3.0 thêm lọc "vùng chạm > 44 px sau khi đã dùng bút = lòng bàn tay" — nhưng iOS báo vùng chạm của NGÓN thường cũng
+   ≈ 40–60 px ⇒ dùng bút một lần là ngón tay bị coi là lòng bàn tay, không cuộn/zoom được. Bỏ lọc đó; chống tì tay mới: ghi vị trí trang
+   lúc ngón đầu chạm (`gBegin`), nếu bút chạm trong 0,8 s sau đó (và chưa zoom) ⇒ trả trang về chỗ cũ + huỷ cử chỉ.
+
+### Đã kiểm
+- WebKit: laser lúc bút còn chạm — nét liền mượt, quầng sáng, đuôi nhỏ dần; tẩy 143 ms ⇒ mã ≤ 1 ms.
+- Chrome (khung 1180×820): sau khi dùng bút, ngón 50 px cuộn được (527 px kèm quán tính), chụm zoom ×2, lòng bàn tay kéo trang rồi bút
+  chạm ⇒ trang về chỗ cũ; tẩy từng phần; lasso chọn + kéo 60 px; lớp tạm sạch; không lỗi console.
+- CHƯA kiểm: iPad thật.
+
 ## VIỆC ĐANG CHỜ
 - [ ] Thử nút Xuất / Khôi phục sao lưu bằng file thật.
 - [ ] Thầy thử iPad thật: note.andrewclasses.com ▸ Thêm vào MH chính ▸ đăng nhập ▸ ghi chú ▸ LIVE; máy chiếu AWord ▸ NOTE.

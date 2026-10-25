@@ -5,7 +5,7 @@ import { icon } from "./icons.js";
 import { toast, askConfirm, esc } from "./ui.js";
 import { getUser, signIn, signOut } from "./firebase.js";
 
-export const VERSION = "0.3.1";
+export const VERSION = "0.3.2";
 const TOOLS_KEY = "mynote.tools";
 
 const getJ = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } };

@@ -2,16 +2,18 @@
 import { db, uid } from "./db.js";
 import { renderPage, A4_H, PAGE_W } from "./ink.js";
 
-const imgCache = new Map();
+const imgCache = new Map(), imgReady = new Map();
 
 // Ảnh nền trang (blob trong kho) ⇒ ImageBitmap, nhớ đệm theo id
 export function getImg(id) {
   if (!id) return Promise.resolve(null);
   if (!imgCache.has(id)) {
-    imgCache.set(id, db.get("blobs", id).then(r => (r ? createImageBitmap(r.blob) : null)).catch(() => null));
+    imgCache.set(id, db.get("blobs", id).then(r => (r ? createImageBitmap(r.blob) : null)).then(b => { imgReady.set(id, b); return b; }).catch(() => null));
   }
   return imgCache.get(id);
 }
+// Ảnh đã nạp xong thì lấy ĐỒNG BỘ (vẽ lại một vùng nhỏ lúc tẩy không phải chờ promise)
+export const peekImg = id => (id ? imgReady.get(id) || null : null);
 
 export const newPage = (paper = "blank") => ({ h: A4_H, paper, strokes: [] });
 

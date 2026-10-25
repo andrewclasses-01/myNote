@@ -101,21 +101,28 @@ export function fillPen(ctx, s, k, dx = 0, dy = 0) {
     for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { sum += p[j * 3 + 2]; c++; }
     ps[i] = sum / c;
   }
-  const X = i => (xs[i] + dx) * k, Y = i => (ys[i] + dy) * k;
-  const R = i => Math.max(0.35, (s.w * k * pw(s, ps[i])) / 2);
+  const X = new Float64Array(n), Y = new Float64Array(n), R = new Float64Array(n);
+  for (let i = 0; i < n; i++) { X[i] = (xs[i] + dx) * k; Y[i] = (ys[i] + dy) * k; R[i] = Math.max(0.35, (s.w * k * pw(s, ps[i])) / 2); }
   ctx.fillStyle = s.c;
-  if (n === 1) { ctx.beginPath(); ctx.arc(X(0), Y(0), R(0), 0, 6.2832); ctx.fill(); return; }
-  const L = new Array(n * 2), Q = new Array(n * 2), sharp = [];
+  fillVar(ctx, X, Y, R, n);
+}
+
+// Tô một nét có bán kính thay đổi: viền 2 bên theo pháp tuyến, nối mềm qua trung điểm, tô MỘT lần (nonzero) + chấm tròn ở 2 đầu
+// và góc gắt. Dùng chung cho bút (fillPen) và bút laser (drawLaser). X/Y/R tính sẵn theo px của ctx.
+export function fillVar(ctx, X, Y, R, n) {
+  if (!n) return;
+  if (n === 1) { ctx.beginPath(); ctx.arc(X[0], Y[0], R[0], 0, 6.2832); ctx.fill(); return; }
+  const L = new Float64Array(n * 2), Q = new Float64Array(n * 2), sharp = [];
   for (let i = 0; i < n; i++) {
     const a = i ? i - 1 : 0, b = i < n - 1 ? i + 1 : n - 1;
-    let vx = X(b) - X(a), vy = Y(b) - Y(a);
+    let vx = X[b] - X[a], vy = Y[b] - Y[a];
     const len = Math.hypot(vx, vy) || 1;
     vx /= len; vy /= len;
-    const r = R(i), x = X(i), y = Y(i);
+    const r = R[i], x = X[i], y = Y[i];
     L[i * 2] = x - vy * r; L[i * 2 + 1] = y + vx * r;
     Q[i * 2] = x + vy * r; Q[i * 2 + 1] = y - vx * r;
     if (i > 0 && i < n - 1) {
-      const ax = x - X(i - 1), ay = y - Y(i - 1), bx = X(i + 1) - x, by = Y(i + 1) - y;
+      const ax = x - X[i - 1], ay = y - Y[i - 1], bx = X[i + 1] - x, by = Y[i + 1] - y;
       const d = Math.hypot(ax, ay) * Math.hypot(bx, by);
       if (d && (ax * bx + ay * by) / d < -0.17) sharp.push(i);
     }
@@ -130,8 +137,46 @@ export function fillPen(ctx, s, k, dx = 0, dy = 0) {
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  for (const i of [0, n - 1, ...sharp]) { ctx.moveTo(X(i) + R(i), Y(i)); ctx.arc(X(i), Y(i), R(i), 0, 6.2832); }
+  for (const i of [0, n - 1, ...sharp]) { ctx.moveTo(X[i] + R[i], Y[i]); ctx.arc(X[i], Y[i], R[i], 0, 6.2832); }
   ctx.fill();
+}
+
+// ⭐ BÚT LASER (v0.3.2, thầy 25/10: "nét bút tương tự như nét bút viết thông thường, chỉ khác là có ánh sáng mềm tỏa ra như laser").
+// pts = [{x, y, t, g}] theo đơn vị trang (g = mã nét: nhấc bút là nét mới), now = performance.now() của máy đang vẽ.
+// Nét = viền tô mượt như bút (fillVar), đầu đuôi nhỏ dần theo tuổi (LASER_LIFE ms) rồi biến mất; quầng sáng = 2 lớp bóng mờ cùng màu.
+// k = px mỗi đơn vị trong hệ toạ độ ctx; glow = độ toả (px THIẾT BỊ — shadowBlur không theo ma trận biến đổi).
+export const LASER_LIFE = 1100;
+export function drawLaser(ctx, pts, now, k, color, glow, width = 3.2) {
+  let i = 0;
+  while (i < pts.length) {
+    let j = i;
+    while (j + 1 < pts.length && pts[j + 1].g === pts[i].g) j++;
+    const n = j - i + 1;
+    const X = new Float64Array(n), Y = new Float64Array(n), R = new Float64Array(n);
+    let m = 0;
+    for (let q = i; q <= j; q++) {
+      const age = now - pts[q].t;
+      if (age > LASER_LIFE) continue;
+      const f = 1 - age / LASER_LIFE;
+      // làm mượt 1-2-1 như bút
+      const a = q > i ? q - 1 : q, b = q < j ? q + 1 : q;
+      X[m] = ((pts[a].x + 2 * pts[q].x + pts[b].x) / 4) * k;
+      Y[m] = ((pts[a].y + 2 * pts[q].y + pts[b].y) / 4) * k;
+      R[m] = Math.max(0.2, (width * k / 2) * Math.min(1, f / 0.55));
+      m++;
+    }
+    if (m) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = glow * 2.2; ctx.globalAlpha = 0.6;
+      fillVar(ctx, X, Y, R, m);
+      ctx.shadowBlur = glow * 0.8; ctx.globalAlpha = 1;
+      fillVar(ctx, X, Y, R, m);
+      ctx.restore();
+    }
+    i = j + 1;
+  }
 }
 
 // ---------- chữ gõ ----------

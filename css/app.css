@@ -40,7 +40,7 @@ input, textarea { font: inherit; color: inherit; }
 
 /* ================================================================ THƯ VIỆN */
 .lib { display: grid; grid-template-columns: 300px 1fr; height: 100%; }
-.side { background: var(--side); padding: calc(18px + env(safe-area-inset-top)) 16px 14px; display: flex; flex-direction: column; gap: 6px; overflow: hidden;
+.side { background: var(--side); padding: calc(var(--sat) * 2.1 + 10px) 16px 14px; display: flex; flex-direction: column; gap: 6px; overflow: hidden;
   border-right: 1px solid #e3e7ef; }
 .brand { display: flex; align-items: center; gap: 12px; padding: 4px 6px 12px; }
 .brand img { width: 44px; height: 44px; border-radius: 12px; box-shadow: 0 4px 12px rgba(232, 80, 106, .3); }
@@ -89,7 +89,7 @@ input, textarea { font: inherit; color: inherit; }
 .set-row .btn { height: 36px; padding: 0 14px; font-size: 13.5px; }
 .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .2); }
 
-.main { overflow-y: auto; padding: calc(26px + env(safe-area-inset-top)) 34px 40px; -webkit-overflow-scrolling: touch; }
+.main { overflow-y: auto; padding: calc(var(--sat) * 2.1 + 16px) 34px 40px; -webkit-overflow-scrolling: touch; }
 .main-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 .main-h h1 { margin: 6px 0 4px; font-size: 38px; font-weight: 800; letter-spacing: -.03em; }
 .main-acts { display: flex; align-items: center; gap: 10px; padding-top: 6px; }
@@ -124,11 +124,15 @@ input, textarea { font: inherit; color: inherit; }
 
 /* ================================================================ MÀN VIẾT */
 .ed { position: relative; height: 100%; background: #e9ecf2; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.ed { --edtop: calc(env(safe-area-inset-top) + 72px); }
+:root { --sat: env(safe-area-inset-top, 0px); }
+/* v0.3.2 — ĐO TỪ ẢNH CHỤP iPad của thầy (25/10, iPad 13", thanh trạng thái ≈ 32 px): iOS làm mờ phần web nằm dưới thanh trạng thái
+   và mờ dần xuống tới ≈ 65 px (≈ 2 lần chiều cao thanh). Thanh công cụ cũ bắt đầu ở ≈ 46 px ⇒ nửa trên các nút bị mờ.
+   Nay mọi nội dung chạm được bắt đầu từ 2,1 × chiều cao thanh trạng thái (≈ 67 px); phần trên là dải trống cùng màu. */
+.ed { --edtop: calc(var(--sat) * 2.1 + 66px); }
 /* v0.3.0 (thầy 25/10: "viền trên cùng bị mờ do nằm sát thanh trạng thái iOS") — dải công cụ là DẢI ĐẶC, trang giấy KHÔNG còn
    cuộn lên dưới thanh trạng thái (iOS làm mờ phần nội dung nằm dưới thanh đó). Khung viết bắt đầu ngay dưới dải. */
 .ed-top { position: absolute; z-index: 5; top: 0; left: 0; right: 0; height: var(--edtop); display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: env(safe-area-inset-top) 14px 0; background: #eef1f6; border-bottom: 1px solid #dde3ec; }
+  padding: calc(var(--sat) * 2.1) 14px 0; background: #eef1f6; border-bottom: 1px solid #dde3ec; }
 .ed-top > * { pointer-events: auto; }
 .ed-left, .ed-right { display: flex; align-items: center; gap: 8px; }
 .ed-left { flex: 1; min-width: 0; }
