@@ -67,11 +67,48 @@ CHƯA kiểm trên iPad thật (Apple Pencil, quán tính cuộn, Safari).
 Không còn hàng tab; chỉ thư mục đang chọn có số; nút icon AWord; hộp Cài đặt mở, các nút ghi đúng localStorage (đã trả lại giá trị cũ sau khi thử).
 Chưa thử Xuất/Khôi phục bằng file thật; chưa thử trên iPad.
 
+## Chặng 3 — 25/10/2026 — v0.2.0 LIVE THẬT + note.andrewclasses.com + nút NOTE trong AWord (máy 1)
+
+### Yêu cầu của thầy
+"Hãy đưa luôn vào AWord đi. Còn app trên ipad thì gắn vào link note.andrewclasses.com. Tôi đã đăng nhập ở chrome."
+Thầy cho phép (hỏi bằng nút): tạo kho GitHub công khai · CNAME ở inet · thêm tên miền vào Firebase · đẩy AWord live.
+
+### Đã làm
+- `js/note-link.js` (MỚI, dùng chung, KHÔNG import gì — chép NGUYÊN VĂN sang AWord `core/note-link.js`): WebRTC DataChannel nối thẳng,
+  bắt tay qua Firestore `users/{uid}/items` — `note_host` (máy chiếu ghi) / `note_pad` (iPad ghi), khuôn AWord `rr-padlink.js`
+  (sid + nonce, nudge `hc` 4 s × 8, cắt khúc tin 12 KB). Đường dự phòng `fb` (bản trang ≤ 1 lần/0,7 s, ≤ 800 KB, không ảnh nền).
+  `watchPadLive` cho nhãn LIVE trên nút NOTE (nhịp `b` 15 s, phải ĐỔI trong 40 s). `localSignal` = bàn thử 2 tab (`?padsig=local`).
+- `js/firebase.js` (MỚI): cùng dự án aword-70dae, đăng nhập Google popup (chỉ namdaptrai01@gmail.com), KHÔNG setPersistence;
+  nạp sẵn lúc mở app để popup mở ngay trong cú bấm (Safari chặn popup trễ). Kind `note-link`.
+- `js/live.js` viết lại: dùng `createNotePad`; trạng thái nút LIVE: chờ màn NOTE / đang nối… / AWord đang xem / đường chậm.
+- `editor.js`: bấm LIVE khi chưa đăng nhập ⇒ hỏi đăng nhập; tự bật LIVE (Cài đặt) đợi biết phiên; `pagehide` ⇒ tắt LIVE (khỏi kẹt máy chiếu).
+- Chân cột thư mục: nút tài khoản (ảnh + "Đã nối tài khoản AWord" / "Đăng nhập Google để LIVE"); Cài đặt: Đăng nhập/Đăng xuất thật,
+  thêm dòng "Đồng bộ ghi chú — Sắp có". Nút icon AWord mở `https://aword.andrewclasses.com/?note=1`. Gỡ `aword-note.html` (đã vào AWord thật).
+- AWord **Đợt 583** `9b05a13` LIVE (build.json sha khớp): nút NOTE trước nút iPad + `core/note-screen.js` (chữ tiếng Anh như AWord).
+- Kho **andrewclasses-01/myNote** (công khai) + Pages nhánh main + `CNAME` · bản ghi CNAME `note → andrewclasses-01.github.io` ở
+  portal.inet.vn (bảo vệ Tắt như các bản ghi GitHub khác) · Firebase ▸ Authentication ▸ Authorized domains thêm `note.andrewclasses.com`
+  · chứng chỉ HTTPS cấp sau ~10 phút ⇒ đã bật Enforce HTTPS.
+
+### Đã kiểm
+- Bàn thử 2 tab cùng origin (máy chủ `note-lab` cổng 9041 phục vụ cả `E:\LAP TRINH APP`): nối < 1 s, nét hiện ngay, tắt/bật lại,
+  3 vòng tải lại/đóng-mở máy chiếu đều nối lại.
+- **Đường THẬT** trên Chrome của thầy: AWord live bấm NOTE ⇒ ghi `note_host` được (luật cho qua); tab thứ 2 đóng vai iPad
+  (cùng tài khoản) ⇒ bắt tay Firestore + WebRTC nối 1,2 s, chữ + nét hiện trên màn NOTE; tắt WebRTC giả Wi-Fi chặn ⇒ "slow link" vẫn hiện trang.
+- note.andrewclasses.com mở được qua https, service worker chạy.
+- CHƯA kiểm: đăng nhập Google trên iPad thật (popup trong app cài từ Màn hình chính có thể khó — nếu kẹt thì đăng nhập trong Safari trước).
+
+### Lỗi đã gặp / cách gỡ
+- AWord: TDZ `let raf` khai sau `host.start()` ⇒ ReferenceError — khai cùng `cam` phía trên.
+- So băm file AWord live luôn "lệch" vì live là bản THU GỌN (Đợt 482) — kiểm bằng `build.json` (sha + nguon), không so byte.
+- `tools/kiem-live.py` của AWord bị timeout mạng lần này ⇒ kiểm tay bằng build.json.
+
 ## VIỆC ĐANG CHỜ
 - [ ] Thử nút Xuất / Khôi phục sao lưu bằng file thật.
-- [ ] Thầy thử mẫu trên iPad thật (bấm `CHAY THU TREN IPAD.bat` trên máy tính, iPad cùng Wi-Fi mở địa chỉ nó in ra) và duyệt/góp ý.
-- [ ] Tạo kho GitHub `andrewclasses-01/myNote` + GitHub Pages (cần thầy đồng ý trước khi đẩy).
-- [ ] Firebase: đăng nhập + đồng bộ (Firestore + Storage, offline trước).
-- [ ] LIVE thật iPad → máy chiếu: WebRTC + Firestore (khuôn rr-padlink.js).
-- [ ] Nút NOTE + màn chiếu trong AWord thật.
+- [ ] Thầy thử iPad thật: note.andrewclasses.com ▸ Thêm vào MH chính ▸ đăng nhập ▸ ghi chú ▸ LIVE; máy chiếu AWord ▸ NOTE.
+- [x] ~~Thầy thử mẫu trên iPad thật~~ (thay bằng dòng trên) (bấm `CHAY THU TREN IPAD.bat` trên máy tính, iPad cùng Wi-Fi mở địa chỉ nó in ra) và duyệt/góp ý.
+- [x] Kho GitHub + Pages + note.andrewclasses.com (25/10).
+- [x] Firebase đăng nhập (25/10).
+- [ ] Đồng bộ ghi chú giữa máy (Firestore + Storage, offline trước) — ⚠️ KHÔNG để trong `users/{uid}/items` (AWord readAll đọc cả kho đó mỗi lần mở thư viện) ⇒ cần đường riêng + luật mới, đọc HO SO BAO MAT trước.
+- [x] LIVE thật WebRTC + Firestore (25/10).
+- [x] Nút NOTE + màn chiếu trong AWord (Đợt 583).
 - [ ] Nâng cấp: nhận dạng hình, chèn ảnh tự do, dải trang thu nhỏ, xuất PDF, thư mục con.

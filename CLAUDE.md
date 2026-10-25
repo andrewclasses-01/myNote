@@ -9,17 +9,19 @@ App web (PWA, cài lên Màn hình chính iPad) thay Notability cho lớp học 
 - iPad luôn NẰM NGANG (khung chuẩn 1180×820).
 
 ## Trạng thái
-**v0.1.1 = BẢN MẪU** (25/10/2026; v0.1.1 = thư viện bỏ tab, số đếm chỉ ở mục đang chọn, nút cài đặt) chờ thầy duyệt giao diện + thao tác trên iPad thật.
+**v0.2.0 LIVE** (25/10/2026) — https://note.andrewclasses.com (kho công khai `andrewclasses-01/myNote`, Pages nhánh main, CNAME ở portal.inet.vn). LIVE thật lên nút NOTE của AWord (Đợt 583). chờ thầy duyệt giao diện + thao tác trên iPad thật.
 - Đã có: thư viện, màn viết đủ công cụ, nhập PDF/ảnh, hoàn tác/làm lại, PWA (manifest + sw.js), LIVE qua BroadcastChannel.
-- CHƯA có: Firebase (đăng nhập + đồng bộ), LIVE thật iPad → máy chiếu (WebRTC), nút NOTE trong AWord thật.
-  Bản mẫu chỉ lưu IndexedDB trong máy; LIVE chỉ nối 2 tab cùng trình duyệt cùng máy.
+- CHƯA có: ĐỒNG BỘ ghi chú giữa các máy — ghi chú chỉ lưu IndexedDB trong máy (Cài đặt ▸ Sao lưu để chép). Đăng nhập Google chỉ để LIVE.
 
 ## Chạy / thử
 - Máy tính: preview `mynote` trong `D:\OTHERS\CLAUDE\.claude\launch.json` (python http.server cổng 9040, bind 0.0.0.0).
 - Thầy tự chạy: bấm đúp `CHAY THU TREN IPAD.bat` ⇒ mở máy chủ cổng 9040 + in địa chỉ để gõ trên iPad (cùng Wi-Fi).
   ⚠️ Qua http://IP (không https) iPad KHÔNG chạy service worker ⇒ chưa dùng offline; "Thêm vào MH chính" vẫn được.
   Bản thật lên GitHub Pages (https) mới đủ PWA.
-- Thử LIVE trên 1 máy: tab 1 `index.html` mở ghi chú ▸ bấm LIVE; tab 2 `aword-note.html` ▸ bấm NOTE.
+- Thử LIVE trên 1 máy không đăng nhập: preview `note-lab` (cổng 9041, phục vụ cả `E:\LAP TRINH APP` ⇒ CÙNG origin) —
+  `/myNote/?padsig=local` + `/AWord/web/?padsig=local` (mở màn: `import('/AWord/web/core/note-screen.js')` ▸ `openNoteScreen()`).
+- ⚠️ Sửa `js/ink.js` hay `js/note-link.js` ⇒ CHÉP sang AWord (`core/note-ink.js` thêm 1 dòng đầu ghi nguồn; `core/note-link.js` nguyên văn) rồi đẩy AWord.
+- Đẩy = `git push` (Pages tự dựng ~1 phút, đệm HTML 10 phút); đổi code nhớ tăng `VER` trong `sw.js`.
 - Phím tắt máy tính: 1–6 chọn công cụ, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, Delete xoá vùng chọn, Ctrl + lăn chuột = phóng to.
 
 ## Kiến trúc (ES module thuần, không build)
@@ -32,10 +34,11 @@ App web (PWA, cài lên Màn hình chính iPad) thay Notability cho lớp học 
 | `js/ink.js` | VẼ dùng chung (iPad + màn NOTE AWord): giấy, nét có lực nhấn, dạ quang, chữ |
 | `js/pages.js` | ảnh nền trang (blob ⇒ ImageBitmap), ảnh thu nhỏ, nhập PDF (pdf.js 6.2.108 chép từ myLesson) / ảnh |
 | `js/db.js` | IndexedDB `mynote`: notes (thẻ nhẹ) · docs (nội dung) · folders · blobs (ảnh nền) |
-| `js/live.js` | kênh LIVE — API `send()` / `onMessage`; bản mẫu = BroadcastChannel |
+| `js/live.js` | nút LIVE: chọn ống (Firestore thật / `?padsig=local`) + chữ trạng thái |
+| `js/note-link.js` | ⚠️ CHÉP NGUYÊN VĂN sang AWord `core/note-link.js`: WebRTC + bắt tay Firestore + dự phòng `fb` + nhãn LIVE |
+| `js/firebase.js` | Firebase aword-70dae: đăng nhập Google (chỉ tài khoản thầy), kênh `note_host`/`note_pad` |
 | `js/settings.js` | hộp Cài đặt (bánh răng chân cột thư mục): giấy, ngón tay, tẩy, tự LIVE, tài khoản (sắp có), sao lưu .json |
 | `js/ui.js` | menu nổi, hộp hỏi, xác nhận, toast, giữ-để-mở-menu |
-| `aword-note.html` | BẢN MẪU phía AWord: thanh nút giả + nút NOTE + màn chiếu (Theo iPad / Cả trang / Vừa ngang) |
 | `sw.js` | mạng trước, rớt mạng dùng đệm; đổi code ⇒ tăng `VER` |
 
 ### Mô hình dữ liệu
@@ -57,9 +60,7 @@ máy chiếu trả `viewer` / `need`. Chi tiết đầu `js/live.js`.
 - Khung xem Claude bị ẩn ⇒ rAF đứng ⇒ quán tính / pdf.js trông như treo khi thử. Nhập PDF thử bằng `_thu/ws.pdf` (gitignore).
 
 ## Roadmap
-1. Thầy duyệt mẫu trên iPad thật (độ mượt bút, cử chỉ, bố cục thanh công cụ).
-2. Firebase AWord: đăng nhập Google, đồng bộ notes/docs (Firestore, mỗi trang 1 tài liệu cho nhẹ) + ảnh nền (Storage), chạy offline rồi đồng bộ sau.
-3. LIVE thật: WebRTC DataChannel bắt tay qua Firestore `users/{uid}/items` (khuôn `AWord templates/rocket-race/rr-padlink.js`: mỗi tài liệu 1 người ghi, sid+nonce, nudge), dự phòng qua Firestore.
-4. Nút NOTE trong AWord thật (`main.js` topbar cạnh Showdown/Stats/iPad) + `core/note-screen.js` từ `aword-note.html`; chấm LIVE trên nút.
+1. Thầy thử iPad thật (bút, cử chỉ, đăng nhập trong app cài, LIVE).
+2. Đồng bộ notes/docs + ảnh nền (KHÔNG dùng `users/{uid}/items` — AWord readAll đọc cả kho đó) ⇒ đường + luật riêng, đọc HO SO BAO MAT trước.
 5. Nâng cấp: nhận dạng hình (thẳng/tròn), chèn ảnh tự do, danh sách trang thu nhỏ, xuất PDF, thư mục con, ghi âm kèm ghi chú.
-6. Đẩy GitHub `andrewclasses-01/myNote` + Pages (ví dụ note.andrewclasses.com).
+
